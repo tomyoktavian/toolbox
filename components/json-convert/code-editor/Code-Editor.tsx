@@ -1,11 +1,11 @@
 'use client'
 import React, { useState, useEffect, useRef } from 'react'
-import { CodeiumEditor, CodeiumEditorProps } from "@codeium/react-code-editor";
+import Editor, { EditorProps } from "@monaco-editor/react";
 import "./code-editor.css"
 
 interface CodeEditorProps
   extends Omit<
-    CodeiumEditorProps,
+    EditorProps,
     "language" | "value" | "defaultValue" | "onChange" | "height"
   > {
   height?: string;
@@ -87,7 +87,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       className="editor-container"
       style={{ height: "100%", minHeight: "300px", position: "relative" }}
     >
-      <CodeiumEditor
+      <Editor
         theme="vs-dark"
         {...props}
         defaultValue={defaultValue}
