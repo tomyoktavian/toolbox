@@ -1,5 +1,6 @@
 import type { BodyMode, RequestBody } from '@/lib/http-client/core';
 import { json } from '@codemirror/lang-json';
+import { SelectField } from './SelectField';
 import { KeyValueEditor } from './KeyValueEditor';
 import { VarCodeEditor } from './VarCodeEditor';
 import { prettyJson } from './lib';
@@ -26,18 +27,13 @@ export function BodyEditor({
   return (
     <div className="flex h-full min-h-0 flex-col gap-2 text-xs">
       <div className="flex items-center gap-2">
-        <select
+        <SelectField
           value={body.mode}
-          data-tip="Tipe body request"
-          onChange={(e) => onChange({ ...body, mode: e.target.value as BodyMode })}
-          className="rounded border border-[var(--vscode-panel-border)] bg-[var(--vscode-dropdown-background)] px-2 py-1 text-xs text-[var(--vscode-dropdown-foreground)] outline-none"
-        >
-          {MODES.map((mode) => (
-            <option key={mode.value} value={mode.value}>
-              {mode.label}
-            </option>
-          ))}
-        </select>
+          tip="Tipe body request"
+          onChange={(mode) => onChange({ ...body, mode })}
+          options={MODES}
+          className="min-w-36"
+        />
         {body.mode === 'json' && (
           <button
             className="opacity-70 hover:opacity-100"

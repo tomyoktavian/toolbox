@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Check, Copy, Download, X } from 'lucide-react';
+import { SelectField } from './SelectField';
 import { ResponseBody } from './ResponseBody';
 import { emit, TARGETS, type TargetLanguage } from './codegen/emit';
 import { inferSchema, pascalCase } from './codegen/schema';
@@ -42,18 +43,12 @@ export function ModelGenerator({
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[var(--vscode-panel-border)] px-3 py-1.5 text-xs">
         <span className="font-medium">Model dari response</span>
-        <select
+        <SelectField
           value={target}
-          data-tip="Bahasa model yang dihasilkan"
-          onChange={(e) => setTarget(e.target.value as TargetLanguage)}
-          className="rounded border border-[var(--vscode-panel-border)] bg-[var(--vscode-dropdown-background)] px-1.5 py-0.5 text-xs text-[var(--vscode-dropdown-foreground)] outline-none"
-        >
-          {TARGETS.map((item) => (
-            <option key={item.value} value={item.value}>
-              {item.label}
-            </option>
-          ))}
-        </select>
+          tip="Bahasa model yang dihasilkan"
+          onChange={setTarget}
+          options={TARGETS}
+        />
         <input
           value={rootName}
           onChange={(e) => setRootName(e.target.value)}

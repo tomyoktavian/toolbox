@@ -14,9 +14,15 @@ import {
 import type { Environment, KeyValue } from '@/lib/http-client/core';
 import { Button } from '@/components/http-client/shared/motion/button/base';
 import { useBridge } from '@/lib/http-client/ui/bridge';
+import { SelectField, type SelectOption } from './SelectField';
 import { fromBulkText, toBulkText } from './bulk-edit';
 import { duplicateKeys } from './variables';
 import { pruneBlank, setPair, withTrailingBlank } from './lib';
+
+const SECRET_OPTIONS: SelectOption<'default' | 'secret'>[] = [
+  { value: 'default', label: 'default' },
+  { value: 'secret', label: 'secret' },
+];
 
 const GLOBALS = '__globals__';
 
@@ -309,20 +315,17 @@ export function EnvironmentsView() {
                           />
                         </td>
                         <td className="px-1 py-0.5">
-                          <select
+                          <SelectField
+                            variant="ghost"
                             value={row.secret ? 'secret' : 'default'}
-                            onChange={(e) =>
+                            onChange={(kind) =>
                               commit(
-                                setPair(withTrailingBlank(rows), index, {
-                                  secret: e.target.value === 'secret',
-                                }),
+                                setPair(withTrailingBlank(rows), index, { secret: kind === 'secret' }),
                               )
                             }
-                            className="w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-xs outline-none hover:border-[var(--vscode-panel-border)]"
-                          >
-                            <option value="default">default</option>
-                            <option value="secret">secret</option>
-                          </select>
+                            options={SECRET_OPTIONS}
+                            className="w-full"
+                          />
                         </td>
                         <td className="px-1">
                           <span className="flex items-center gap-0.5">

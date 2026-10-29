@@ -141,6 +141,7 @@ export class HttpClientHost implements ChannelHost {
   private activeKey: string | undefined;
   private activeRequestId: string | undefined;
   private readonly pendingExamples = new Map<string, string>();
+  private readonly snapshots = new Map<string, (request: HttpRequest | undefined) => void>();
   private envSelectId: string | undefined;
   private viewStates: Record<string, Record<string, unknown>>;
   private snapshot: HostSnapshot = { panels: [] };
@@ -371,6 +372,9 @@ export class HttpClientHost implements ChannelHost {
       case "http-panel-dirty":
         this.patchPanel(requestKey(m.requestId), { dirty: Boolean(m.dirty) });
         break;
+      case "http-snapshot":
+        this.snapshots.get(m.token)?.(m.request as HttpRequest | undefined);
+        break;
       case "http-folder-new": {
         const collectionId = m.collectionId ?? (await this.pickCollection());
         if (!collectionId) return;
@@ -596,6 +600,64 @@ export class HttpClientHost implements ChannelHost {
       return;
     }
     this.dispose(key);
+  };
+
+  /** Closes several tabs at once, asking a single question when any of them has unsaved edits. */
+  closeMany = async (keys: readonly string[]): Promise<void> => {
+    const targets = keys.flatMap((key) => {
+      const panel = this.panels.get(key);
+      return panel ? [panel] : [];
+    });
+    if (targets.length === 0) return;
+    const unsaved = targets.filter((panel) => panel.dirty);
+    if (unsaved.length > 0) {
+      const drafts = targets.some((panel) => panel.draft);
+      const ok = await this.ui?.confirm(
+        `${unsaved.length} tab punya perubahan yang belum disimpan${
+          drafts ? ", dan request draft akan dihapus" : ""
+        }. Tutup ${targets.length} tab?`,
+        "Tutup",
+      );
+      if (!ok) return;
+    }
+    // Deleting rewrites the collection file, so these must not run in parallel.
+    for (const panel of targets) {
+      this.dispose(panel.key);
+      if (panel.draft && panel.collectionId && panel.requestId) {
+        await rpc("deleteRequest", panel.collectionId, panel.requestId);
+      }
+    }
+    await this.broadcastTree();
+  };
+
+  /** What a request tab currently holds, unsaved edits included; undefined if it does not answer. */
+  private requestSnapshot(requestId: string): Promise<HttpRequest | undefined> {
+    return new Promise((resolve) => {
+      const token = crypto.randomUUID();
+      const finish = (request: HttpRequest | undefined): void => {
+        clearTimeout(timer);
+        this.snapshots.delete(token);
+        resolve(request);
+      };
+      const timer = setTimeout(() => finish(undefined), 1000);
+      this.snapshots.set(token, finish);
+      this.postTo(requestId, { type: "http-snapshot-request", token });
+    });
+  }
+
+  /** Opens a copy of a request tab as a draft: closing it without saving deletes the copy. */
+  duplicate = async (key: string): Promise<void> => {
+    const panel = this.panels.get(key);
+    if (!panel || panel.kind !== "request" || !panel.collectionId || !panel.requestId) return;
+    try {
+      const current = await this.requestSnapshot(panel.requestId);
+      const copyId = await rpc("duplicateRequestAs", panel.collectionId, panel.requestId, current ?? null);
+      await this.broadcastTree();
+      await this.openRequest(panel.collectionId, copyId);
+      this.patchPanel(requestKey(copyId), { draft: true });
+    } catch (error) {
+      this.ui?.toast("error", `HTTP client: ${errorText(error)}`);
+    }
   };
 
   /** Removes a tab, as disposing a VS Code panel does. */

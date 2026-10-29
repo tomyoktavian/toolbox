@@ -4,6 +4,10 @@
  * on :root (not the module root) because popovers and menus are portalled to <body>.
  */
 :root {
+  /* Outline and shadow for the module's morphing popover (see shared/motion/popover.tsx). */
+  --hc-popover-shadow: rgb(0 0 0 / 0.18);
+  --hc-popover-ring: color-mix(in oklch, var(--foreground) 14%, transparent);
+
   --vscode-foreground: var(--foreground);
   --vscode-errorForeground: var(--destructive);
   --vscode-focusBorder: var(--ring);
@@ -59,6 +63,8 @@
 }
 
 .dark {
+  --hc-popover-shadow: rgb(0 0 0 / 0.55);
+  --hc-popover-ring: color-mix(in oklch, var(--foreground) 18%, transparent);
   --vscode-textLink-foreground: oklch(0.72 0.15 255);
   --vscode-charts-blue: oklch(0.7 0.16 255);
   --vscode-charts-purple: oklch(0.72 0.17 300);

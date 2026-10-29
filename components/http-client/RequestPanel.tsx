@@ -3,7 +3,6 @@ import { Code, Columns2, Eye, FileCode2, Plus, Rows2, Save, Send, Square } from 
 import type {
   Collection,
   Environment,
-  HttpMethod,
   HttpRequest,
   HttpResponse,
   KeyValue,
@@ -15,6 +14,7 @@ import type {
 } from '@/lib/http-client/core';
 import { Button } from '@/components/http-client/shared/motion/button/base';
 import { useBridge } from '@/lib/http-client/ui/bridge';
+import { SelectField } from './SelectField';
 import { AuthEditor } from './AuthEditor';
 import { BodyEditor } from './BodyEditor';
 import { ExampleEditor } from './ExampleEditor';
@@ -39,6 +39,12 @@ import {
 import { paramsFromUrl, urlFromParams } from './url-sync';
 
 const exampleId = (): string => crypto.randomUUID();
+
+const METHOD_OPTIONS = METHODS.map((method) => ({
+  value: method,
+  label: method,
+  className: `font-bold ${methodStyle(method)}`,
+}));
 
 interface PanelViewState extends Record<string, unknown> {
   httpCollectionId?: string;
@@ -147,6 +153,9 @@ export function RequestPanel() {
           setEnvironmentId((current) => current ?? state.activeEnvironmentId);
           break;
         }
+        case 'http-snapshot-request':
+          post({ type: 'http-snapshot', token: msg.token, request: draftRef.current });
+          break;
         case 'http-example-show':
           setExampleView((msg.exampleId as string | undefined) ?? undefined);
           break;
@@ -430,23 +439,20 @@ export function RequestPanel() {
         {dirty && <span className="h-1.5 w-1.5 rounded-full bg-amber-400" data-tip="Belum disimpan" />}
 
         <div className="ml-auto flex items-center gap-1.5">
-          <select
+          <SelectField
             value={environmentId ?? ''}
-            onChange={(e) => {
-              const next = e.target.value || undefined;
+            onChange={(id) => {
+              const next = id || undefined;
               setEnvironmentId(next);
               post({ type: 'http-env-activate', ...(next ? { environmentId: next } : {}) });
             }}
-            className="max-w-[160px] rounded border border-[var(--vscode-panel-border)] bg-[var(--vscode-dropdown-background)] px-2 py-1 text-xs text-[var(--vscode-dropdown-foreground)] outline-none"
-            data-tip="Environment untuk tab ini — pilihan terakhir dipakai tab baru berikutnya"
-          >
-            <option value="">No environment</option>
-            {environments.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
+            className="max-w-[160px]"
+            tip="Environment untuk tab ini — pilihan terakhir dipakai tab baru berikutnya"
+            options={[
+              { value: '', label: 'No environment' },
+              ...environments.map((item) => ({ value: item.id, label: item.name })),
+            ]}
+          />
           <button
             data-tip={split === 'vertical' ? 'Tata letak kiri-kanan' : 'Tata letak atas-bawah'}
             onClick={() => setSplit(split === 'vertical' ? 'horizontal' : 'vertical')}
@@ -496,18 +502,13 @@ export function RequestPanel() {
         {isWs ? (
           <span className={`font-bold ${methodStyle('WS')}`}>WS</span>
         ) : (
-          <select
+          <SelectField
             value={draft.method}
-            data-tip="Method HTTP"
-            onChange={(e) => update({ method: e.target.value as HttpMethod })}
-            className={`rounded border border-[var(--vscode-panel-border)] bg-[var(--vscode-dropdown-background)] px-2 py-1 text-xs font-bold outline-none ${methodStyle(draft.method)}`}
-          >
-            {METHODS.map((method) => (
-              <option key={method} value={method}>
-                {method}
-              </option>
-            ))}
-          </select>
+            tip="Method HTTP"
+            onChange={(method) => update({ method })}
+            options={METHOD_OPTIONS}
+            className="font-bold"
+          />
         )}
         <VarInput
           value={draft.url}

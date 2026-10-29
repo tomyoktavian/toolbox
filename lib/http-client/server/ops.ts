@@ -9,6 +9,7 @@ import {
   findFolder,
   findRequest,
   hostOf,
+  newId,
   parseCurl,
   resolveAuthVars,
   scopeFor,
@@ -105,6 +106,30 @@ export const ops = {
   },
   duplicateRequest: (collectionId: string, requestId: string) =>
     runtime().service.duplicateRequest(collectionId, requestId),
+  /**
+   * Copies a request next to the original and returns the copy's id. `current` is what the open tab
+   * holds (possibly unsaved edits); without it the saved request is copied.
+   */
+  duplicateRequestAs: async (collectionId: string, requestId: string, current: HttpRequest | null) => {
+    const copyId = newId();
+    await runtime().service.mutate(collectionId, (collection) => {
+      const found = findRequest(collection, requestId);
+      if (!found) return false;
+      const source = current ?? found.request;
+      const copy: HttpRequest = {
+        ...structuredClone(source),
+        id: copyId,
+        name: `${source.name} copy`,
+        ...(source.examples
+          ? { examples: source.examples.map((example) => ({ ...structuredClone(example), id: newId() })) }
+          : {}),
+      };
+      const folderId = found.folderPath[found.folderPath.length - 1];
+      const folder = folderId ? findFolder(collection, folderId) : undefined;
+      (folder ? folder.requests : collection.requests).push(copy);
+    });
+    return copyId;
+  },
   deleteRequest: (collectionId: string, requestId: string) =>
     runtime().service.deleteRequest(collectionId, requestId),
   saveRequest: (collectionId: string, request: HttpRequest) =>

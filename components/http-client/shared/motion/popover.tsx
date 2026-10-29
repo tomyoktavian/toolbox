@@ -530,6 +530,10 @@ export function PopoverContent({ children, className }: PopoverContentProps) {
               top: origin.y + geo.top,
               width: geo.layerW,
               height: geo.layerH,
+              // The panel is clipped to a rounded rect, which cuts off its own box-shadow. A filter on
+              // this unclipped wrapper shadows the shape that is actually drawn.
+              filter:
+                "drop-shadow(0 10px 24px var(--hc-popover-shadow)) drop-shadow(0 2px 4px var(--hc-popover-shadow))",
             }}
           >
         <div
@@ -550,10 +554,12 @@ export function PopoverContent({ children, className }: PopoverContentProps) {
               position: "absolute",
               left: geo.panel.x,
               top: geo.panel.y,
+              // Matches the clip radius so the inset border below follows the rounded corners.
+              borderRadius: geo.panel.r,
               transformOrigin: `${ALIGN_ORIGIN[align]} ${side === "bottom" ? "top" : "bottom"}`,
             }}
             className={cn(
-              "w-max max-w-[min(92vw,20rem)] bg-popover p-4 text-popover-foreground outline-none",
+              "w-max max-w-[min(92vw,20rem)] bg-popover p-4 text-popover-foreground shadow-[inset_0_0_0_1px_var(--hc-popover-ring)] outline-none",
               className,
             )}
           >

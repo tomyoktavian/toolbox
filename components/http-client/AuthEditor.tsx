@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import type { AuthConfig, AuthKind } from '@/lib/http-client/core';
 import { Button } from '@/components/http-client/shared/motion/button/base';
+import { SelectField } from './SelectField';
 import { VarInput } from './VarInput';
 import { CELL } from './lib';
 
@@ -65,17 +66,12 @@ export function AuthEditor({
     <div className="flex flex-col gap-2 text-xs">
       <label className="flex items-center gap-2">
         <span className="w-28 shrink-0 opacity-70">Tipe</span>
-        <select
+        <SelectField
           value={auth.type}
-          onChange={(e) => onChange(blank(e.target.value as AuthKind))}
-          className="flex-1 rounded border border-[var(--vscode-panel-border)] bg-[var(--vscode-dropdown-background)] px-2 py-1 text-xs text-[var(--vscode-dropdown-foreground)] outline-none"
-        >
-          {kinds.map((kind) => (
-            <option key={kind.value} value={kind.value}>
-              {kind.label}
-            </option>
-          ))}
-        </select>
+          onChange={(kind) => onChange(blank(kind))}
+          options={kinds}
+          className="flex-1"
+        />
       </label>
 
       {auth.type === 'bearer' && (
@@ -113,14 +109,15 @@ export function AuthEditor({
           />
           <label className="flex items-center gap-2">
             <span className="w-28 shrink-0 opacity-70">Kirim di</span>
-            <select
+            <SelectField
               value={auth.in}
-              onChange={(e) => onChange({ ...auth, in: e.target.value as 'header' | 'query' })}
-              className="flex-1 rounded border border-[var(--vscode-panel-border)] bg-[var(--vscode-dropdown-background)] px-2 py-1 text-xs text-[var(--vscode-dropdown-foreground)] outline-none"
-            >
-              <option value="header">Header</option>
-              <option value="query">Query string</option>
-            </select>
+              onChange={(where) => onChange({ ...auth, in: where })}
+              className="flex-1"
+              options={[
+                { value: 'header', label: 'Header' },
+                { value: 'query', label: 'Query string' },
+              ]}
+            />
           </label>
         </>
       )}
@@ -129,19 +126,15 @@ export function AuthEditor({
         <>
           <label className="flex items-center gap-2">
             <span className="w-28 shrink-0 opacity-70">Grant</span>
-            <select
+            <SelectField
               value={auth.grantType}
-              onChange={(e) =>
-                onChange({
-                  ...auth,
-                  grantType: e.target.value as 'authorization_code' | 'client_credentials',
-                })
-              }
-              className="flex-1 rounded border border-[var(--vscode-panel-border)] bg-[var(--vscode-dropdown-background)] px-2 py-1 text-xs text-[var(--vscode-dropdown-foreground)] outline-none"
-            >
-              <option value="client_credentials">Client Credentials</option>
-              <option value="authorization_code">Authorization Code</option>
-            </select>
+              onChange={(grantType) => onChange({ ...auth, grantType })}
+              className="flex-1"
+              options={[
+                { value: 'client_credentials', label: 'Client Credentials' },
+                { value: 'authorization_code', label: 'Authorization Code' },
+              ]}
+            />
           </label>
           {auth.grantType === 'authorization_code' && (
             <>

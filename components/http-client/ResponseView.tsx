@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import type { HttpResponse, ResponseHistorySummary, ScriptReport } from '@/lib/http-client/core';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/http-client/shared/motion/popover';
+import { SelectField } from './SelectField';
 import { JsonTable } from './JsonTable';
 import { renderTemplate, visualizeDocument, type VisualTheme } from './visualize';
 import { ModelGenerator, type SavePayload } from './ModelGenerator';
@@ -827,20 +828,14 @@ function LanguagePicker({
   grow?: boolean;
 }) {
   return (
-    <select
+    <SelectField
       value={value}
-      onChange={(event) => onChange(event.target.value as BodyLanguage)}
-      data-tip="Bahasa penyorotan"
-      className={`rounded border border-transparent bg-transparent px-1 py-0.5 text-[11px] text-[var(--vscode-dropdown-foreground)] outline-none hover:border-[var(--vscode-panel-border)] ${
-        grow ? 'min-w-0 flex-1 border-[var(--vscode-panel-border)]' : ''
-      }`}
-    >
-      {BODY_LANGUAGES.map((item) => (
-        <option key={item.value} value={item.value}>
-          {item.label}
-        </option>
-      ))}
-    </select>
+      onChange={onChange}
+      options={BODY_LANGUAGES}
+      variant="ghost"
+      tip="Bahasa penyorotan"
+      className={`text-[11px] ${grow ? 'min-w-0 flex-1 border-input' : ''}`}
+    />
   );
 }
 

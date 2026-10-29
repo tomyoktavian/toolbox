@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { Layers, Folder, Globe, SlidersHorizontal, X } from "lucide-react";
+import { CopyPlus, Layers, Folder, Globe, ListX, PanelTopClose, SlidersHorizontal, X } from "lucide-react";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { cn } from "@/lib/utils";
 import { BridgeProvider } from "@/lib/http-client/ui/bridge";
@@ -62,22 +69,26 @@ export function Workbench() {
                 {panels.map((panel) => {
                   const unsaved = Boolean(panel.draft || panel.dirty);
                   return (
-                    <div
-                      key={panel.key}
-                      role="tab"
-                      aria-selected={panel.key === activeKey}
-                      title={panel.draft ? `${panel.title} — draft, belum disimpan` : panel.title}
-                      onClick={() => host.activate(panel.key)}
-                      onAuxClick={(event) => {
-                        if (event.button === 1) void host.close(panel.key);
-                      }}
-                      className={cn(
-                        "group flex max-w-56 shrink-0 items-center gap-1.5 border-r py-1.5 pl-3 pr-1.5 text-xs",
-                        panel.draft && "italic",
-                        panel.key === activeKey
-                          ? "-mb-px border-b border-b-background bg-background text-foreground"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
+                    <ContextMenu key={panel.key}>
+                    <ContextMenuTrigger
+                      render={
+                        <div
+                          role="tab"
+                          aria-selected={panel.key === activeKey}
+                          title={panel.draft ? `${panel.title} — draft, belum disimpan` : panel.title}
+                          onClick={() => host.activate(panel.key)}
+                          onAuxClick={(event) => {
+                            if (event.button === 1) void host.close(panel.key);
+                          }}
+                          className={cn(
+                            "group flex max-w-56 shrink-0 items-center gap-1.5 border-r py-1.5 pl-3 pr-1.5 text-xs",
+                            panel.draft && "italic",
+                            panel.key === activeKey
+                              ? "-mb-px border-b border-b-background bg-background text-foreground"
+                              : "text-muted-foreground hover:text-foreground",
+                          )}
+                        />
+                      }
                     >
                       <TabLabel panel={panel} />
                       {/* Like VS Code: an unsaved tab shows a dot that turns into the close button on hover. */}
@@ -97,7 +108,36 @@ export function Workbench() {
                         )}
                         <X size={12} className={cn(unsaved && "hidden group-hover:block")} />
                       </button>
-                    </div>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent className="min-w-48 text-xs">
+                      <ContextMenuItem className="text-xs" onClick={() => void host.close(panel.key)}>
+                        <X /> Tutup tab
+                      </ContextMenuItem>
+                      <ContextMenuItem
+                        className="text-xs"
+                        disabled={panels.length < 2}
+                        onClick={() =>
+                          void host.closeMany(panels.filter((item) => item.key !== panel.key).map((item) => item.key))
+                        }
+                      >
+                        <PanelTopClose /> Tutup tab lain
+                      </ContextMenuItem>
+                      <ContextMenuItem
+                        className="text-xs"
+                        onClick={() => void host.closeMany(panels.map((item) => item.key))}
+                      >
+                        <ListX /> Tutup semua tab
+                      </ContextMenuItem>
+                      <ContextMenuSeparator />
+                      <ContextMenuItem
+                        className="text-xs"
+                        disabled={panel.kind !== "request"}
+                        onClick={() => void host.duplicate(panel.key)}
+                      >
+                        <CopyPlus /> Duplikat tab
+                      </ContextMenuItem>
+                    </ContextMenuContent>
+                    </ContextMenu>
                   );
                 })}
               </div>

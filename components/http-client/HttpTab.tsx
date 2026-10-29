@@ -34,6 +34,7 @@ import { Button } from '@/components/http-client/shared/motion/button/base';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/http-client/shared/motion/popover';
 import { CHEVRON_STYLE, TreeIndent } from '@/components/http-client/shared/TreeIndent';
 import { useBridge } from '@/lib/http-client/ui/bridge';
+import { SelectField } from './SelectField';
 import { HighlightText, RequestLabel } from './HighlightText';
 import { effectiveUrl, flattenCollection, folderPath, methodLabel, methodStyle } from './lib';
 
@@ -340,19 +341,16 @@ export function HttpTab() {
             className="resize-y rounded border border-[var(--vscode-panel-border)] bg-[var(--vscode-input-background)] px-2 py-1 font-mono text-[11px] text-[var(--vscode-input-foreground)] outline-none"
           />
           <div className="flex items-center gap-1.5">
-            <select
+            <SelectField
               value={curlTarget}
-              onChange={(e) => setCurlTarget(e.target.value)}
-              className="min-w-0 flex-1 rounded border border-[var(--vscode-panel-border)] bg-[var(--vscode-dropdown-background)] px-1.5 py-1 text-xs text-[var(--vscode-dropdown-foreground)] outline-none"
-              data-tip="Collection tujuan"
-            >
-              <option value="">Collection baru (nama dari host)</option>
-              {tree.collections.map((collection) => (
-                <option key={collection.id} value={collection.id}>
-                  {collection.name}
-                </option>
-              ))}
-            </select>
+              onChange={setCurlTarget}
+              tip="Collection tujuan"
+              className="min-w-0 flex-1"
+              options={[
+                { value: '', label: 'Collection baru (nama dari host)' },
+                ...tree.collections.map((collection) => ({ value: collection.id, label: collection.name })),
+              ]}
+            />
             <Button
               variant="primary"
               size="sm"
