@@ -58,6 +58,19 @@ import {
   generateId,
 } from "@/lib/json-transform";
 
+const FIELD_TYPE_ITEMS: Record<FieldType, string> = {
+  string: "String",
+  number: "Number",
+  boolean: "Boolean",
+  object: "Object",
+  array: "Array",
+};
+
+const OUTPUT_MODE_ITEMS = {
+  object: "Single Object",
+  array: "Array of Objects",
+};
+
 // --- Recursive Component for Mapping Rules ---
 
 interface MappingRuleItemProps {
@@ -212,6 +225,7 @@ function MappingRuleItem({ mapping, onUpdate, onRemove, onMove, isFirst, isLast,
             <div className="space-y-1.5">
               <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Type</Label>
               <Select
+                items={FIELD_TYPE_ITEMS}
                 value={mapping.type}
                 onValueChange={(type) => onUpdate({ type: type as FieldType })}
               >
@@ -619,7 +633,7 @@ export function ManipulationPlayground() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Result Type</Label>
-                    <Select value={outputMode} onValueChange={(v) => setOutputMode(v as any)}>
+                    <Select items={OUTPUT_MODE_ITEMS} value={outputMode} onValueChange={(v) => setOutputMode(v as any)}>
                       <SelectTrigger className="h-8 text-xs bg-background border-border shadow-sm">
                         <SelectValue />
                       </SelectTrigger>

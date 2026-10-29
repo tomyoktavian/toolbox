@@ -144,10 +144,10 @@ export function JsonConverter() {
               </Label>
               <TooltipProvider>
                 <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="outline" size="sm" onClick={formatJson} className="h-8">
-                      Format JSON
-                    </Button>
+                  <TooltipTrigger
+                    render={<Button variant="outline" size="sm" onClick={formatJson} className="h-8" />}
+                  >
+                    Format JSON
                   </TooltipTrigger>
                   <TooltipContent>
                     <p>Format JSON with proper indentation</p>
@@ -266,25 +266,27 @@ export function JsonConverter() {
             {output && (
               <TooltipProvider>
                 <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={copyToClipboard}
-                      className="h-8 flex items-center gap-1"
-                    >
-                      {copied ? (
-                        <>
-                          <Check className="h-4 w-4" />
-                          <span>Copied</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="h-4 w-4" />
-                          <span>Copy</span>
-                        </>
-                      )}
-                    </Button>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={copyToClipboard}
+                        className="h-8 flex items-center gap-1"
+                      />
+                    }
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="h-4 w-4" />
+                        <span>Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-4 w-4" />
+                        <span>Copy</span>
+                      </>
+                    )}
                   </TooltipTrigger>
                   <TooltipContent>
                     <p>Copy code to clipboard</p>

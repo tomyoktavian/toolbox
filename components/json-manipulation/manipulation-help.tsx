@@ -36,15 +36,17 @@ export function ManipulationHelp() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button
-          size="icon"
-          className="w-12 h-12 rounded-full shadow-lg hover:scale-110 transition-transform bg-primary text-primary-foreground"
-        >
-          <BookOpen className="w-6 h-6" />
-        </Button>
+      <DialogTrigger
+        render={
+          <Button
+            size="icon"
+            className="w-12 h-12 rounded-full shadow-lg hover:scale-110 transition-transform bg-primary text-primary-foreground"
+          />
+        }
+      >
+        <BookOpen className="w-6 h-6" />
       </DialogTrigger>
-      <DialogContent className="max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col p-0 border-none shadow-2xl">
+      <DialogContent className="sm:max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col p-0 border-none shadow-2xl">
         <DialogHeader className="p-8 pb-4 bg-primary/5 border-b border-primary/10">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">

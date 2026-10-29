@@ -103,7 +103,7 @@ export function PathSelector({
           {segment.type === "object" ? (
             <Select
               value={segment.key}
-              onValueChange={(val) => handleSegmentChange(index, val)}
+              onValueChange={(val) => val !== null && handleSegmentChange(index, val)}
             >
               <SelectTrigger className="h-7 min-w-[90px] w-auto text-[10px] bg-background border-border flex gap-1.5 px-2">
                 <Key className="w-3 h-3 text-primary/70" />
@@ -120,7 +120,7 @@ export function PathSelector({
           ) : (
             <Select
               value={segment.key}
-              onValueChange={(val) => handleSegmentChange(index, val)}
+              onValueChange={(val) => val !== null && handleSegmentChange(index, val)}
             >
               <SelectTrigger className="h-7 min-w-[60px] w-auto text-[10px] bg-background border-border flex gap-1.5 px-2">
                 <Hash className="w-3 h-3 text-blue-500/70" />
