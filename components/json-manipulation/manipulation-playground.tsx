@@ -565,7 +565,7 @@ export function ManipulationPlayground() {
   if (!isHydrated) return null; // Avoid mismatch during hydration
 
   return (
-    <div className="flex flex-col h-[calc(100vh-3.5rem)] bg-background">
+    <div className="flex flex-col h-[calc(100vh-var(--app-header))] bg-background">
       <ResizablePanelGroup orientation="horizontal" className="flex-1">
         {/* Input Panel */}
         <ResizablePanel defaultSize={35} minSize={20}>

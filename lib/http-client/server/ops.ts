@@ -21,7 +21,7 @@ import {
 } from "@/lib/http-client/core";
 import { buildSnippetRequest } from "@/lib/http-client/core/snippet/build";
 import { awaitAuthorizationCode } from "./oauth-callback";
-import { runtime } from "./runtime";
+import { runtime, withSentCapture } from "./runtime";
 
 function hasScripts(scripts: RequestScripts | undefined): scripts is RequestScripts {
   return Boolean(scripts?.preRequest?.trim() || scripts?.postResponse?.trim());
@@ -150,12 +150,15 @@ export const ops = {
     const controller = new AbortController();
     running.set(request.id, controller);
     try {
-      const outcome = await service.send(collectionId, request, {
-        signal: controller.signal,
-        ...(environmentId ? { environmentId } : {}),
-      });
+      const { result: outcome, sent } = await withSentCapture(() =>
+        service.send(collectionId, request, {
+          signal: controller.signal,
+          ...(environmentId ? { environmentId } : {}),
+        }),
+      );
       return {
         ...outcome,
+        ...(sent ? { sent } : {}),
         ...(outcome.error && controller.signal.aborted ? { error: "Dibatalkan." } : {}),
       };
     } finally {

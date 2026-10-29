@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export default function HttpClientPage() {
   if (!httpClientServerEnabled()) {
     return (
-      <div className="flex h-[calc(100dvh-3.5rem-1px)] items-center justify-center p-6 text-center text-sm text-muted-foreground">
+      <div className="flex h-[calc(100dvh-var(--app-header)-1px)] items-center justify-center p-6 text-center text-sm text-muted-foreground">
         HTTP Client hanya aktif saat dijalankan lokal (next dev), karena server menjalankan script
         request dan bisa mengakses URL mana pun. Set HTTP_CLIENT_SERVER=on untuk mengaktifkannya di
         build produksi.
@@ -20,7 +20,7 @@ export default function HttpClientPage() {
     );
   }
   return (
-    <div className="h-[calc(100dvh-3.5rem-1px)]">
+    <div className="h-[calc(100dvh-var(--app-header)-1px)]">
       <HttpClientApp />
     </div>
   );

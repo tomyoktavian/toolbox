@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { join } from "node:path";
 import WebSocket from "ws";
 import {
@@ -7,6 +8,7 @@ import {
   type WsConnect,
   type WsSessionState,
 } from "@/lib/http-client/core";
+import { nodeFetch } from "@/lib/http-client/core/runner/node-fetch";
 
 const nodeConnect: WsConnect = (url, options, handlers) => {
   const socket = new WebSocket(url, options.protocols ?? [], { headers: options.headers });
@@ -28,6 +30,52 @@ const nodeConnect: WsConnect = (url, options, handlers) => {
   };
 };
 
+/** What actually went on the wire for a request, after variables, auth and pre-request scripts. */
+export interface SentRequest {
+  method: string;
+  url: string;
+  headers: Array<[string, string]>;
+  body?: string;
+}
+
+type CaptureSlot = { sent?: SentRequest };
+
+// On globalThis, like the runtime: the service keeps the fetch built by the first copy of this module,
+// and after a dev hot reload both copies must still read and write the same store.
+function captureStore(): AsyncLocalStorage<CaptureSlot> {
+  const holder = globalThis as unknown as Record<string, AsyncLocalStorage<CaptureSlot> | undefined>;
+  return (holder.__httpClientCaptureStore ??= new AsyncLocalStorage<CaptureSlot>());
+}
+
+function headerPairs(init: HeadersInit | undefined): Array<[string, string]> {
+  if (!init) return [];
+  if (init instanceof Headers) return [...init.entries()];
+  if (Array.isArray(init)) return init.map(([key, value]) => [key, value]);
+  return Object.entries(init).map(([key, value]) => [key, value]);
+}
+
+// The runner's fetch, with a side channel that remembers the request being sent for the console.
+const recordingFetch: typeof fetch = (input, init) => {
+  const slot = captureStore().getStore();
+  // The main request always passes `redirect`; OAuth token calls (which carry secrets) do not.
+  if (slot && init?.redirect !== undefined) {
+    slot.sent = {
+      method: init.method ?? "GET",
+      url: input instanceof Request ? input.url : String(input),
+      headers: headerPairs(init.headers),
+      ...(typeof init.body === "string" ? { body: init.body } : {}),
+    };
+  }
+  return nodeFetch(input, init);
+};
+
+/** Runs `run` and returns its result together with the request it sent, when it sent one. */
+export async function withSentCapture<T>(run: () => Promise<T>): Promise<{ result: T; sent?: SentRequest }> {
+  const slot: { sent?: SentRequest } = {};
+  const result = await captureStore().run(slot, run);
+  return { result, ...(slot.sent ? { sent: slot.sent } : {}) };
+}
+
 export interface HttpClientRuntime {
   service: HttpClientService;
   ws: WsRunner;
@@ -38,7 +86,8 @@ export interface HttpClientRuntime {
   oauthFlows: Map<string, { promise: Promise<void>; cancel: () => void }>;
 }
 
-const GLOBAL_KEY = "__httpClientRuntime";
+// Bump the suffix when the runtime's shape changes, so dev hot reloads build a fresh one.
+const GLOBAL_KEY = "__httpClientRuntime_v3";
 
 /**
  * One service per server process. Kept on globalThis because Next.js may load route modules
@@ -57,7 +106,7 @@ export function runtime(): HttpClientRuntime {
   });
 
   const created: HttpClientRuntime = {
-    service: new HttpClientService(staticStorage(root)),
+    service: new HttpClientService(staticStorage(root), { fetch: recordingFetch }),
     ws,
     wsListeners,
     running: new Map(),

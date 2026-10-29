@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
 import { CopyPlus, Layers, Folder, Globe, ListX, PanelTopClose, SlidersHorizontal, X } from "lucide-react";
 import {
   ContextMenu,
@@ -19,7 +19,21 @@ import { OwnerPanel } from "../OwnerPanel";
 import { RequestPanel } from "../RequestPanel";
 import { methodStyle } from "../lib";
 import { TooltipLayer } from "../shared/TooltipLayer";
+import { ConsoleBar, ConsolePanel } from "./console-panel";
 import { HostDialogs } from "./host-dialogs";
+
+const CONSOLE_OPEN_KEY = "http-client:console-open";
+const CONSOLE_HEIGHT_KEY = "http-client:console-height";
+const CONSOLE_MIN_HEIGHT = 120;
+const CONSOLE_DEFAULT_HEIGHT = 280;
+
+function readStored(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
 
 function PanelView({ panel }: { panel: HostPanel }) {
   if (panel.kind === "request") return <RequestPanel />;
@@ -53,8 +67,41 @@ export function Workbench() {
 
   useEffect(() => host.start(), [host]);
 
+  const [consoleOpen, setConsoleOpen] = useState(() => readStored(CONSOLE_OPEN_KEY) === "1");
+  const [consoleHeight, setConsoleHeight] = useState(
+    () => Math.max(CONSOLE_MIN_HEIGHT, Number(readStored(CONSOLE_HEIGHT_KEY)) || CONSOLE_DEFAULT_HEIGHT),
+  );
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CONSOLE_OPEN_KEY, consoleOpen ? "1" : "0");
+      localStorage.setItem(CONSOLE_HEIGHT_KEY, String(consoleHeight));
+    } catch {}
+  }, [consoleOpen, consoleHeight]);
+
+  const onConsoleResizeStart = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    event.preventDefault();
+    const handle = event.currentTarget;
+    handle.setPointerCapture(event.pointerId);
+    const startY = event.clientY;
+    const startHeight = consoleHeight;
+    const move = (e: PointerEvent): void => {
+      const max = Math.round(window.innerHeight * 0.7);
+      setConsoleHeight(Math.min(max, Math.max(CONSOLE_MIN_HEIGHT, startHeight - (e.clientY - startY))));
+    };
+    const up = (): void => {
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", up);
+      handle.removeEventListener("pointercancel", up);
+    };
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", up);
+    handle.addEventListener("pointercancel", up);
+  };
+
   return (
-    <div className="http-client-root h-full w-full overflow-hidden bg-background text-foreground">
+    <div className="http-client-root flex h-full w-full flex-col overflow-hidden bg-background text-foreground">
+      <div className="min-h-0 flex-1">
       <ResizablePanelGroup orientation="horizontal" className="h-full w-full">
         <ResizablePanel id="http-sidebar" defaultSize={300} minSize={220} maxSize="50%" className="border-r">
           <BridgeProvider channel={host.sidebar}>
@@ -164,9 +211,27 @@ export function Workbench() {
                 </div>
               ))}
             </div>
+            {/* A sibling after the editors, so opening the console never remounts them (drafts live there). */}
+            {consoleOpen && (
+              <>
+                <div
+                  onPointerDown={onConsoleResizeStart}
+                  onDoubleClick={() => setConsoleHeight(CONSOLE_DEFAULT_HEIGHT)}
+                  data-tip="Geser untuk mengubah tinggi · klik dua kali untuk reset"
+                  className="group relative h-1.5 shrink-0 cursor-row-resize touch-none select-none"
+                >
+                  <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-border transition-colors group-hover:bg-ring group-active:bg-ring" />
+                </div>
+                <div style={{ height: consoleHeight, maxHeight: "70%" }} className="shrink-0">
+                  <ConsolePanel host={host} onClose={() => setConsoleOpen(false)} />
+                </div>
+              </>
+            )}
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>
+      </div>
+      <ConsoleBar host={host} open={consoleOpen} onToggle={() => setConsoleOpen(!consoleOpen)} />
       <TooltipLayer />
       <HostDialogs host={host} />
     </div>

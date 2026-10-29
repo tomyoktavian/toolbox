@@ -11,6 +11,7 @@ import type {
 } from "@/lib/http-client/core";
 import { findFolder, findRequest } from "@/lib/http-client/core/model/factory";
 import { PanelChannel, type BridgeMessage, type ChannelHost } from "./bridge";
+import { MAX_CONSOLE_ENTRIES, buildConsoleEntry, type ConsoleEntry } from "./console";
 import { EVENTS_URL, rpc } from "./rpc";
 
 export type PanelKind = "request" | "owner" | "environments";
@@ -142,6 +143,8 @@ export class HttpClientHost implements ChannelHost {
   private activeRequestId: string | undefined;
   private readonly pendingExamples = new Map<string, string>();
   private readonly snapshots = new Map<string, (request: HttpRequest | undefined) => void>();
+  // The console is a session log kept in memory only: it holds real headers and bodies, secrets included.
+  private consoleSnapshot: readonly ConsoleEntry[] = [];
   private envSelectId: string | undefined;
   private viewStates: Record<string, Record<string, unknown>>;
   private snapshot: HostSnapshot = { panels: [] };
@@ -176,6 +179,18 @@ export class HttpClientHost implements ChannelHost {
   };
 
   getSnapshot = (): HostSnapshot => this.snapshot;
+
+  getConsole = (): readonly ConsoleEntry[] => this.consoleSnapshot;
+
+  clearConsole = (): void => {
+    this.consoleSnapshot = [];
+    for (const listener of this.listeners) listener();
+  };
+
+  private pushConsole(entry: ConsoleEntry): void {
+    this.consoleSnapshot = [...this.consoleSnapshot, entry].slice(-MAX_CONSOLE_ENTRIES);
+    for (const listener of this.listeners) listener();
+  }
 
   private emit(): void {
     this.snapshot = { panels: [...this.panels.values()], ...(this.activeKey ? { activeKey: this.activeKey } : {}) };
@@ -950,6 +965,7 @@ export class HttpClientHost implements ChannelHost {
       outcome = { error: errorText(error), reports: [] };
     }
     this.postTo(request.id, { type: "http-running", requestId: request.id, running: false });
+    this.pushConsole(buildConsoleEntry(request, outcome));
     if (outcome.response) await this.postHistory(request.id);
     this.postTo(request.id, {
       type: "http-result",
