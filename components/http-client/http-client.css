@@ -1,0 +1,91 @@
+/*
+ * The HTTP client UI comes from the Silak VS Code extension, which styles itself with the
+ * --vscode-* theme variables. Here they are derived from the app's shadcn tokens instead. They sit
+ * on :root (not the module root) because popovers and menus are portalled to <body>.
+ */
+:root {
+  --vscode-foreground: var(--foreground);
+  --vscode-errorForeground: var(--destructive);
+  --vscode-focusBorder: var(--ring);
+  --vscode-panel-border: var(--border);
+  --vscode-textLink-foreground: oklch(0.55 0.2 255);
+  --vscode-charts-blue: oklch(0.6 0.19 255);
+  --vscode-charts-purple: oklch(0.58 0.22 300);
+  --vscode-editorWarning-foreground: oklch(0.67 0.16 70);
+
+  --vscode-input-background: var(--background);
+  --vscode-input-foreground: var(--foreground);
+  --vscode-input-border: var(--input);
+  --vscode-input-placeholderForeground: var(--muted-foreground);
+  --vscode-dropdown-background: var(--popover);
+  --vscode-dropdown-foreground: var(--popover-foreground);
+
+  --vscode-toolbar-hoverBackground: var(--accent);
+  --vscode-list-hoverBackground: var(--accent);
+  --vscode-list-activeSelectionBackground: color-mix(in oklch, var(--primary) 14%, transparent);
+  --vscode-list-activeSelectionForeground: var(--foreground);
+  --vscode-list-inactiveSelectionBackground: var(--muted);
+  --vscode-tree-indentGuidesStroke: var(--border);
+
+  --vscode-button-secondaryBackground: var(--secondary);
+  --vscode-button-secondaryForeground: var(--secondary-foreground);
+  --vscode-badge-background: var(--secondary);
+  --vscode-badge-foreground: var(--secondary-foreground);
+
+  --vscode-editorWidget-background: var(--popover);
+  --vscode-editorWidget-foreground: var(--popover-foreground);
+  --vscode-editorWidget-border: var(--border);
+  --vscode-editorHoverWidget-background: var(--popover);
+  --vscode-editorHoverWidget-foreground: var(--popover-foreground);
+  --vscode-editorHoverWidget-border: var(--border);
+
+  --vscode-editor-background: var(--background);
+  --vscode-editor-foreground: var(--foreground);
+  --vscode-editorCursor-foreground: var(--foreground);
+  --vscode-editor-lineHighlightBackground: color-mix(in oklch, var(--muted) 70%, transparent);
+  --vscode-editor-selectionBackground: color-mix(in oklch, oklch(0.6 0.19 255) 25%, transparent);
+  --vscode-editor-selectionHighlightBackground: color-mix(in oklch, oklch(0.6 0.19 255) 15%, transparent);
+  --vscode-editor-findMatchBackground: color-mix(in oklch, oklch(0.8 0.16 85) 55%, transparent);
+  --vscode-editor-findMatchHighlightBackground: color-mix(in oklch, oklch(0.8 0.16 85) 30%, transparent);
+  --vscode-editor-foldPlaceholderBackground: var(--muted);
+  --vscode-editorBracketMatch-background: color-mix(in oklch, var(--ring) 20%, transparent);
+  --vscode-editorBracketMatch-border: var(--ring);
+  --vscode-editorLineNumber-foreground: var(--muted-foreground);
+  --vscode-editorLineNumber-activeForeground: var(--foreground);
+  --vscode-editorIndentGuide-background: var(--border);
+  --vscode-editorGutter-background: var(--background);
+  --vscode-editorGutter-border: transparent;
+  --vscode-editorGutter-foldingControlForeground: var(--muted-foreground);
+}
+
+.dark {
+  --vscode-textLink-foreground: oklch(0.72 0.15 255);
+  --vscode-charts-blue: oklch(0.7 0.16 255);
+  --vscode-charts-purple: oklch(0.72 0.17 300);
+  --vscode-editorWarning-foreground: oklch(0.8 0.15 80);
+}
+
+/* next/font sets its family variables on <body>, so the font aliases are declared there. */
+body {
+  --vscode-font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --vscode-editor-font-family: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+.http-client-root {
+  font-family: var(--vscode-font-family);
+  font-size: 12px;
+}
+
+.http-client-root button:not(:disabled),
+.http-client-root [role="button"]:not([aria-disabled="true"]),
+.http-client-root select:not(:disabled) {
+  cursor: pointer;
+}
+
+.scrollbar-hide {
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileJson, FileCode, Terminal } from "lucide-react";
+import { FileJson, FileCode, Terminal, Send } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +19,11 @@ export function Navbar() {
       name: "Manipulation",
       href: "/json-manipulation",
       icon: <Terminal className="h-4 w-4" />,
+    },
+    {
+      name: "HTTP Client",
+      href: "/http-client",
+      icon: <Send className="h-4 w-4" />,
     },
   ];
 
