@@ -1,15 +1,15 @@
-import { JsonPlayground } from "@/components/json-convert/json-playground";
 import { Metadata } from "next";
+import { ToolGrid } from "@/components/home/tool-grid";
 
 export const metadata: Metadata = {
-  title: "JSON Converter - JSON Master",
-  description: "Convert JSON to TypeScript, Java, Flutter, Swift, Go, and Kotlin.",
+  title: "Dev Toolbox",
+  description: "Developer tools: convert data, test APIs, and more.",
 };
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-slate-50 dark:bg-slate-950">
-      <JsonPlayground />
-    </main>
+    <div className="mx-auto max-w-[1120px] px-6 pt-12 pb-24">
+      <ToolGrid />
+    </div>
   );
 }

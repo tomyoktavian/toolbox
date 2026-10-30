@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "JSON Master - Ultimate JSON Tools",
-  description: "The ultimate tool for JSON conversion and manipulation.",
+  title: "Dev Toolbox",
+  description: "Developer tools: convert data, test APIs, and more.",
 };
 
 export default function RootLayout({

@@ -2,7 +2,7 @@ import { HttpClientApp } from "@/components/http-client/http-client-app";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "HTTP Client - JSON Master",
+  title: "HTTP Client - Dev Toolbox",
   description: "Send HTTP requests and manage API collections, environments, and workspaces.",
 };
 

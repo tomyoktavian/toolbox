@@ -2,7 +2,7 @@ import { ManipulationPlayground } from "@/components/json-manipulation/manipulat
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "JSON Manipulation - JSON Master",
+  title: "JSON Manipulation - Dev Toolbox",
   description: "Format, minify, and sort your JSON data easily.",
 };
 
