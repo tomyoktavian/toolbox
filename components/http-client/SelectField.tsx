@@ -1,4 +1,12 @@
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Plus } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
 export interface SelectOption<T extends string = string> {
@@ -10,6 +18,8 @@ export interface SelectOption<T extends string = string> {
 
 // Base UI reads `null` as "nothing selected", so an empty-string option value travels as this.
 const EMPTY = '__empty__';
+// The footer action is an item of the list, but picking it runs a callback instead of choosing a value.
+const ACTION = '__action__';
 const toInternal = (value: string): string => (value === '' ? EMPTY : value);
 const fromInternal = (value: string): string => (value === EMPTY ? '' : value);
 
@@ -25,6 +35,7 @@ export function SelectField<T extends string>({
   className,
   tip,
   placeholder,
+  action,
 }: {
   value: T;
   onChange: (next: T) => void;
@@ -34,13 +45,17 @@ export function SelectField<T extends string>({
   /** Tooltip text, shown by the module's tooltip layer. */
   tip?: string;
   placeholder?: string;
+  /** A "+ ..." entry after the options, separated from them; it does not change the value. */
+  action?: { label: string; onSelect: () => void };
 }) {
   const selected = options.find((option) => option.value === value);
   return (
     <Select
       value={toInternal(value)}
       onValueChange={(next) => {
-        if (next !== null) onChange(fromInternal(next) as T);
+        if (next === null) return;
+        if (next === ACTION) action?.onSelect();
+        else onChange(fromInternal(next) as T);
       }}
       items={options.map((option) => ({ value: toInternal(option.value), label: option.label }))}
     >
@@ -62,6 +77,15 @@ export function SelectField<T extends string>({
             {option.label}
           </SelectItem>
         ))}
+        {action && (
+          <>
+            <SelectSeparator />
+            <SelectItem value={ACTION} className="text-xs">
+              <Plus className="size-3" />
+              {action.label}
+            </SelectItem>
+          </>
+        )}
       </SelectContent>
     </Select>
   );

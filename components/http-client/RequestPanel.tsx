@@ -477,6 +477,8 @@ export function RequestPanel() {
               { value: '', label: 'No environment' },
               ...environments.map((item) => ({ value: item.id, label: item.name })),
             ]}
+            // Creates it and opens the Environments page on it; this tab's own choice is left alone.
+            action={{ label: 'Add new environment', onSelect: () => post({ type: 'http-env-new' }) }}
           />
           <button
             data-tip={split === 'vertical' ? 'Tata letak kiri-kanan' : 'Tata letak atas-bawah'}
