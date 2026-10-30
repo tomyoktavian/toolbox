@@ -7,7 +7,7 @@ import { CodeEditor } from '@/components/http-client/shared/CodeEditor';
 import { BodyEditor } from './BodyEditor';
 import { KeyValueEditor } from './KeyValueEditor';
 import { guessLanguage } from './ResponseBody';
-import { statusColor } from './lib';
+import { prettyJson, statusColor } from './lib';
 
 type Pane = 'body' | 'headers' | 'payload';
 
@@ -29,7 +29,11 @@ export function ExampleEditor({
   const [name, setName] = useState(example.name);
   const [status, setStatus] = useState(String(example.status));
   const [statusText, setStatusText] = useState(example.statusText);
-  const [body, setBody] = useState(example.body);
+  // A saved response is usually one minified line; open it formatted. It is only written back when the
+  // example is saved, and an invalid or non-JSON body is left exactly as it was.
+  const [body, setBody] = useState(() =>
+    guessLanguage(example.contentType ?? '', example.body) === 'json' ? prettyJson(example.body) : example.body,
+  );
   const [pane, setPane] = useState<Pane>('body');
 
   const language = useMemo(

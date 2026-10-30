@@ -31,11 +31,15 @@ import {
   CELL,
   METHODS,
   effectiveUrl,
+  exampleLabel,
+  exampleName,
   folderTrail,
   isDefaultRequestName,
   methodStyle,
+  responseMatchesExample,
   statusColor,
   titleFromUrl,
+  withSavedExamples,
 } from './lib';
 import { paramsFromUrl, urlFromParams } from './url-sync';
 
@@ -149,7 +153,11 @@ export function RequestPanel() {
             setTab('body');
           }
           setSaved0(normalized);
-          setDraft((current) => current ?? normalized);
+          setDraft((current) => (current ? withSavedExamples(current, normalized) : normalized));
+          // An example that is gone (deleted from the sidebar) must not stay open in this tab.
+          setExampleView((open) =>
+            open && normalized.examples?.some((example) => example.id === open) ? open : undefined,
+          );
           setCollection(state.collection);
           setEnvironments(state.environments);
           setGlobals(state.globals);
@@ -334,7 +342,7 @@ export function RequestPanel() {
     if (!current || !response) return;
     const example: RequestExample = {
       id: exampleId(),
-      name: `Contoh ${current.examples?.length ? current.examples.length + 1 : 1} — ${response.status}`,
+      name: exampleName(current.name, response.status, current.examples ?? []),
       status: response.status,
       statusText: response.statusText,
       headers: response.headers.map(([key, value]) => ({ key, value, enabled: true })),
@@ -399,6 +407,12 @@ export function RequestPanel() {
   useEffect(() => {
     if (!tabs.includes(tab)) setTab('params');
   }, [tabs, tab]);
+
+  // A response is worth saving as an example only when no saved example already holds it.
+  const matchedExample =
+    response && draft && !viewing
+      ? draft.examples?.find((example) => responseMatchesExample(example, response, draft.body))
+      : undefined;
 
   if (!draft) return <div className="p-4 text-xs opacity-60">Memuat request…</div>;
 
@@ -673,7 +687,7 @@ export function RequestPanel() {
                   onClick={() => setExampleView(exampleView === example.id ? undefined : example.id)}
                 >
                   <span className={`font-mono ${statusColor(example.status)}`}>{example.status}</span>
-                  {example.name}
+                  {exampleLabel(example)}
                 </button>
               ))}
               <button
@@ -684,7 +698,7 @@ export function RequestPanel() {
                   if (!current) return;
                   const example: RequestExample = {
                     id: exampleId(),
-                    name: `Contoh ${(current.examples?.length ?? 0) + 1}`,
+                    name: exampleName(current.name, 200, current.examples ?? []),
                     status: 200,
                     statusText: 'OK',
                     headers: [],
@@ -771,7 +785,9 @@ export function RequestPanel() {
                   ...(payload.base64 ? { bodyBase64: payload.body } : { body: payload.body }),
                 })
               }
-              {...(response ? { onSaveExample: addExampleFromResponse } : {})}
+              {...(response && !matchedExample ? { onSaveExample: addExampleFromResponse } : {})}
+              {...(matchedExample ? { savedExample: { id: matchedExample.id, name: matchedExample.name } } : {})}
+              onOpenExample={setExampleView}
             />
           )}
           </div>

@@ -2,7 +2,9 @@ import type {
   Collection,
   HttpMethod,
   HttpRequest,
+  HttpResponse,
   KeyValue,
+  RequestBody,
   RequestExample,
   RequestFolder,
 } from '@/lib/http-client/core';
@@ -186,4 +188,111 @@ export function titleFromUrl(url: string): string {
   const withoutScheme = url.trim().replace(/^[a-z][a-z0-9+.-]*:\/\//i, '');
   const withoutQuery = withoutScheme.split(/[?#]/)[0] ?? '';
   return withoutQuery.replace(/\/+$/, '');
+}
+
+// Headers that differ on every call without the response being different: timestamps, per-call ids,
+// cookies, rate-limit counters, and anything derived from the transport rather than the content.
+const VOLATILE_HEADER =
+  /^(date|age|expires|set-cookie|content-length|connection|keep-alive|transfer-encoding|server-timing|traceparent|tracestate|via|cf-ray|x-amz-cf-id)$|(^|-)(request|correlation|trace)-?id$|rate-?limit|response-time|runtime|duration/i;
+
+function sortKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortKeys);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, item]) => [key, sortKeys(item)]),
+    );
+  }
+  return value;
+}
+
+/** JSON compares by content (key order and whitespace do not matter); anything else by trimmed text. */
+function normalizedText(text: string): string {
+  try {
+    return JSON.stringify(sortKeys(JSON.parse(text)));
+  } catch {
+    return text.trim();
+  }
+}
+
+function pairsKey(pairs: readonly KeyValue[] | undefined): string {
+  return JSON.stringify(
+    (pairs ?? []).filter((pair) => pair.enabled && pair.key.trim()).map((pair) => [pair.key, pair.value]),
+  );
+}
+
+function requestBodyKey(body: RequestBody | undefined): string {
+  if (!body || body.mode === 'none') return '';
+  if (body.mode === 'form' || body.mode === 'urlencoded') return `${body.mode}:${pairsKey(body.form)}`;
+  if (body.mode === 'graphql') {
+    return `graphql:${normalizedText(body.graphql?.query ?? '')}|${normalizedText(body.graphql?.variables ?? '')}`;
+  }
+  return `${body.mode}:${normalizedText(body.text ?? '')}`;
+}
+
+function responseHeadersKey(headers: ReadonlyArray<readonly [string, string]>): string {
+  return headers
+    .filter(([name]) => !VOLATILE_HEADER.test(name))
+    .map(([name, value]) => `${name.toLowerCase()}: ${value.trim()}`)
+    .sort()
+    .join('\n');
+}
+
+/**
+ * Whether a saved example already holds this exchange: the same request payload and the same
+ * response (status, body, and the headers that are not per-call noise).
+ */
+export function responseMatchesExample(
+  example: RequestExample,
+  response: HttpResponse,
+  requestBody: RequestBody,
+): boolean {
+  // A binary body is not kept in an example, so there is nothing to compare it with.
+  if (response.bodyBase64) return false;
+  return (
+    example.status === response.status &&
+    normalizedText(example.body) === normalizedText(response.body) &&
+    responseHeadersKey(example.headers.filter((header) => header.enabled).map((header) => [header.key, header.value])) ===
+      responseHeadersKey(response.headers) &&
+    requestBodyKey(example.requestBody) === requestBodyKey(requestBody)
+  );
+}
+
+/**
+ * The name for a new example: the status and the request's own name ("200 Catalog list"), so the
+ * sidebar reads like the endpoint and says which response it is. A counter tells equal names apart.
+ */
+export function exampleName(
+  requestName: string,
+  status: number,
+  existing: readonly RequestExample[],
+): string {
+  const base = `${status} ${requestName.trim() || 'Contoh'}`;
+  const taken = new Set(existing.map((example) => example.name));
+  if (!taken.has(base)) return base;
+  for (let n = 2; ; n++) {
+    const candidate = `${base} (${n})`;
+    if (!taken.has(candidate)) return candidate;
+  }
+}
+
+/** The name without a leading status code, for places that already show the status next to it. */
+export function exampleLabel(example: RequestExample): string {
+  const prefix = `${example.status} `;
+  return example.name.startsWith(prefix) && example.name.length > prefix.length
+    ? example.name.slice(prefix.length)
+    : example.name;
+}
+
+/**
+ * Examples are written to the collection the moment they change, so the saved list is the truth for
+ * them: one deleted from the sidebar has to leave an open tab too. The form fields in `draft`, which
+ * may hold unsaved edits, are left as they are.
+ */
+export function withSavedExamples(draft: HttpRequest, saved: HttpRequest): HttpRequest {
+  const next = { ...draft };
+  if (saved.examples) next.examples = saved.examples;
+  else delete next.examples;
+  return next;
 }

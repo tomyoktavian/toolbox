@@ -69,6 +69,8 @@ export function ResponseView({
   onBackToLatest,
   onSave,
   onSaveExample,
+  savedExample,
+  onOpenExample,
   onAi,
   onAiStop,
   aiBusy = false,
@@ -86,7 +88,11 @@ export function ResponseView({
   onClearHistory: () => void;
   onBackToLatest: () => void;
   onSave: (payload: SavePayload) => void;
+  /** Offered only for a response no saved example holds yet. */
   onSaveExample?: () => void;
+  /** The saved example that already holds this response, when there is one. */
+  savedExample?: { id: string; name: string };
+  onOpenExample?: (id: string) => void;
   onAi?: (action: 'fix' | 'explain' | 'tests') => void;
   onAiStop?: () => void;
   aiBusy?: boolean;
@@ -321,16 +327,6 @@ export function ResponseView({
           ...(response.bodyBase64 ? { base64: true } : {}),
         }),
     },
-    ...(onSaveExample && response && !viewing
-      ? [
-          {
-            key: 'example',
-            label: 'Simpan sebagai contoh',
-            icon: <Braces size={13} />,
-            onClick: onSaveExample,
-          },
-        ]
-      : []),
     ...(parsedJson.ok
       ? [
           {
@@ -357,6 +353,27 @@ export function ResponseView({
             {response.redirected && <span className="opacity-60">redirected</span>}
             {response.truncated && (
               <span className="text-[var(--vscode-editorWarning-foreground)]">body dipotong</span>
+            )}
+            {!viewing && onSaveExample && (
+              <button
+                type="button"
+                onClick={onSaveExample}
+                data-tip="Simpan request dan response ini sebagai contoh di collection"
+                className="flex items-center gap-1 rounded border border-[var(--vscode-panel-border)] px-2 py-0.5 hover:bg-[var(--vscode-toolbar-hoverBackground)]"
+              >
+                <Braces size={12} /> Save as example
+              </button>
+            )}
+            {!viewing && !onSaveExample && savedExample && (
+              <button
+                type="button"
+                onClick={() => onOpenExample?.(savedExample.id)}
+                data-tip="Response ini sama dengan contoh yang sudah disimpan · klik untuk membukanya"
+                className="flex max-w-56 items-center gap-1 rounded px-1 py-0.5 opacity-70 hover:bg-[var(--vscode-toolbar-hoverBackground)] hover:opacity-100"
+              >
+                <Check size={12} className="shrink-0 text-emerald-500" />
+                <span className="truncate">Contoh: {savedExample.name}</span>
+              </button>
             )}
           </>
         )}
