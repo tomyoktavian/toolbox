@@ -14,7 +14,8 @@ import {
 import { fetchSpecText } from "@/lib/http-client/core/import/fetch-spec";
 import { buildSnippetRequest } from "@/lib/http-client/core/snippet/build";
 import { awaitAuthorizationCode } from "./oauth-callback";
-import { runtime, withSentCapture } from "./runtime";
+import { agentConnected } from "./agent";
+import { currentAgentToken, runtime, withSentCapture } from "./runtime";
 
 type OAuthStart =
   | { notice: string; level: "info" | "error" }
@@ -54,6 +55,9 @@ export const ops = {
   cancel: (requestId: string) => {
     runtime().running.get(requestId)?.abort();
   },
+
+  /** Whether the caller's Local Proxy (the one paired by its token) is connected right now. */
+  agentStatus: () => ({ connected: agentConnected(currentAgentToken()) }),
 
   parseCurl: (text: string) => parseCurl(text),
   curlHost: (text: string) => hostOf(parseCurl(text).url),

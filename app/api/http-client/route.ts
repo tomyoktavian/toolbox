@@ -1,5 +1,7 @@
 import { rejectHttpClientRequest } from "@/lib/http-client/server/guard";
+import { parseAgentToken } from "@/lib/http-client/server/agent";
 import { ops, type HttpClientOp } from "@/lib/http-client/server/ops";
+import { withCaller } from "@/lib/http-client/server/runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,7 +23,8 @@ export async function POST(request: Request) {
 
   try {
     const handler = ops[op as HttpClientOp] as (...input: unknown[]) => unknown;
-    const result = await handler(...args);
+    const agentToken = parseAgentToken(request.headers.get("x-http-client-agent"));
+    const result = await withCaller({ ...(agentToken ? { agentToken } : {}) }, () => handler(...args));
     return Response.json({ result: result ?? null });
   } catch (error) {
     return Response.json(

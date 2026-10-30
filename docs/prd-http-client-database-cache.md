@@ -25,7 +25,7 @@ Eksekusi request (`send`), WebSocket, OAuth, dan console tidak di-cache dan tida
 - `HttpClientStoragePort` hanya mengembalikan path folder, sehingga tidak bisa dipakai untuk database.
 - `lib/http-client/server/runtime.ts` membuat satu runtime per proses, disimpan di `globalThis`.
 - `lib/http-client/ui/rpc.ts` memanggil server dengan `fetch` biasa. Belum ada lapisan cache.
-- `app/http-client/page.tsx` bersifat `force-dynamic` dan dijaga `httpClientServerEnabled()`.
+- `app/http-client/page.tsx` bersifat `force-dynamic`. API-nya hanya melayani pemanggil dengan Host yang diizinkan (`rejectHttpClientRequest`); flag `HTTP_CLIENT_SERVER` sudah dihapus dan server selalu aktif.
 - `package.json`: Next.js `^16.4.3`, React `^19.3.1`, Zustand. TanStack Query belum terpasang.
 
 Masalah yang diselesaikan:
@@ -107,7 +107,7 @@ Bila Opsi B dipilih, tambahkan Fase 0 (spike) untuk membuktikan SSE, WebSocket, 
 - FR-11. Penarikan dari server saat aplikasi dibuka dan saat jendela kembali fokus. Perubahan dari anggota lain digabung ke toko lokal.
 - FR-12. Konflik (versi server lebih baru dari versi dasar lokal): tampilkan dialog "pakai milik saya", "pakai milik server", atau "gandakan keduanya".
 - FR-13. Minta `navigator.storage.persist()` agar data lokal tidak mudah dihapus browser, dan tampilkan status sinkronisasi (tersinkron, tertunda, gagal).
-- FR-14. SSR hanya untuk kerangka halaman. HTML tidak berisi data pengguna, sehingga bisa di-cache di CDN. Pemeriksaan `httpClientServerEnabled()` tetap dijalankan lebih dulu.
+- FR-14. SSR hanya untuk kerangka halaman. HTML tidak berisi data pengguna, sehingga bisa di-cache di CDN. Pemeriksaan Host (`rejectHttpClientRequest`) tetap berlaku untuk API-nya.
 - FR-15. Yang tidak di-cache: `send`, `cancel`, `ws*`, `oauthStart/oauthFinish`, dan console.
 
 ## 7. Arsitektur cache

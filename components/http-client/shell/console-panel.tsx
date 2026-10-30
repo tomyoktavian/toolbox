@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { curlFor, isFailedEntry, type ConsoleEntry } from "@/lib/http-client/ui/console";
 import type { HttpClientHost } from "@/lib/http-client/ui/host";
 import { methodStyle, statusColor } from "../lib";
+import { LocalProxyButton } from "./local-proxy";
 
 function useConsoleEntries(host: HttpClientHost): readonly ConsoleEntry[] {
   return useSyncExternalStore(host.subscribe, host.getConsole, host.getConsole);
@@ -57,15 +58,18 @@ export function ConsoleBar({
   const failed = entries.filter(isFailedEntry).length;
   return (
     <footer className="flex h-6 shrink-0 items-center justify-between gap-1 border-t bg-muted/40 px-2 text-[11px]">
-      <button
-        onClick={sidebar.onToggle}
-        aria-pressed={sidebar.open}
-        aria-label={sidebar.open ? "Sembunyikan sidebar" : "Tampilkan sidebar"}
-        data-tip={`${sidebar.open ? "Sembunyikan" : "Tampilkan"} sidebar (${sidebar.shortcut})`}
-        className="flex items-center rounded px-1.5 py-0.5 hover:bg-accent"
-      >
-        {sidebar.open ? <PanelLeftClose size={13} /> : <PanelLeftOpen size={13} />}
-      </button>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={sidebar.onToggle}
+          aria-pressed={sidebar.open}
+          aria-label={sidebar.open ? "Sembunyikan sidebar" : "Tampilkan sidebar"}
+          data-tip={`${sidebar.open ? "Sembunyikan" : "Tampilkan"} sidebar (${sidebar.shortcut})`}
+          className="flex items-center rounded px-1.5 py-0.5 hover:bg-accent"
+        >
+          {sidebar.open ? <PanelLeftClose size={13} /> : <PanelLeftOpen size={13} />}
+        </button>
+        <LocalProxyButton />
+      </div>
       <button
         onClick={onToggle}
         aria-pressed={open}

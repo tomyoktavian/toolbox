@@ -11,6 +11,8 @@ import {
   type WsSessionState,
 } from "@/lib/http-client/core";
 import { nodeFetch } from "@/lib/http-client/core/runner/node-fetch";
+import { agentConnected, fetchViaAgent } from "./agent";
+import { isLocalTarget } from "./guard";
 
 const nodeConnect: WsConnect = (url, options, handlers) => {
   const socket = new WebSocket(url, options.protocols ?? [], { headers: options.headers });
@@ -49,6 +51,24 @@ function captureStore(): AsyncLocalStorage<CaptureSlot> {
   return (holder.__httpClientCaptureStore ??= new AsyncLocalStorage<CaptureSlot>());
 }
 
+/** Who is calling: the browser's Local Proxy token, so a request to localhost can be sent through its proxy. */
+interface Caller {
+  agentToken?: string;
+}
+
+function callerStore(): AsyncLocalStorage<Caller> {
+  const holder = globalThis as unknown as Record<string, AsyncLocalStorage<Caller> | undefined>;
+  return (holder.__httpClientCallerStore ??= new AsyncLocalStorage<Caller>());
+}
+
+export function withCaller<T>(caller: Caller, run: () => T): T {
+  return callerStore().run(caller, run);
+}
+
+export function currentAgentToken(): string | undefined {
+  return callerStore().getStore()?.agentToken;
+}
+
 function headerPairs(init: HeadersInit | undefined): Array<[string, string]> {
   if (!init) return [];
   if (init instanceof Headers) return [...init.entries()];
@@ -57,18 +77,32 @@ function headerPairs(init: HeadersInit | undefined): Array<[string, string]> {
 }
 
 // The runner's fetch, with a side channel that remembers the request being sent for the console.
-const recordingFetch: typeof fetch = (input, init) => {
+// A request to localhost goes through the caller's Local Proxy when one is connected: "localhost" on
+// this server is not the user's machine. Everything else is sent from here as usual.
+const recordingFetch: typeof fetch = async (input, init) => {
   const slot = captureStore().getStore();
+  const url = input instanceof Request ? input.url : String(input);
   // The main request always passes `redirect`; OAuth token calls (which carry secrets) do not.
   if (slot && init?.redirect !== undefined) {
     slot.sent = {
       method: init.method ?? "GET",
-      url: input instanceof Request ? input.url : String(input),
+      url,
       headers: headerPairs(init.headers),
       ...(typeof init.body === "string" ? { body: init.body } : {}),
     };
   }
-  return nodeFetch(input, init);
+  const local = isLocalTarget(url);
+  const token = currentAgentToken();
+  if (local && token && agentConnected(token)) return fetchViaAgent(token, url, init);
+  try {
+    return await nodeFetch(input, init);
+  } catch (error) {
+    if (!local || init?.signal?.aborted) throw error;
+    throw new Error(
+      "Server tidak bisa menjangkau alamat lokal ini. Jika aplikasi berjalan di server (bukan di komputer Anda), sambungkan Local Proxy lewat tombol di footer.",
+      { cause: error },
+    );
+  }
 };
 
 /** Runs `run` and returns its result together with the request it sent, when it sent one. */
@@ -89,7 +123,7 @@ export interface HttpClientRuntime {
 }
 
 // Bump the suffix when the runtime's shape changes, so dev hot reloads build a fresh one.
-const GLOBAL_KEY = "__httpClientRuntime_v5";
+const GLOBAL_KEY = "__httpClientRuntime_v6";
 
 /**
  * One service per server process. Kept on globalThis because Next.js may load route modules

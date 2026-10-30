@@ -1,13 +1,16 @@
-const LOCAL_HOSTS = ["localhost", "127.0.0.1", "[::1]"];
+export const LOCAL_HOSTS = ["localhost", "127.0.0.1", "[::1]"];
 
-/**
- * The server runs request scripts in node:vm (not a security boundary) and can reach any URL,
- * so it is off in production builds unless HTTP_CLIENT_SERVER=on says otherwise.
- */
-export function httpClientServerEnabled(): boolean {
-  return process.env.NODE_ENV !== "production" || process.env.HTTP_CLIENT_SERVER === "on";
+/** Whether a request URL points at this machine (the one the Local Proxy runs on). */
+export function isLocalTarget(url: string): boolean {
+  try {
+    return LOCAL_HOSTS.includes(new URL(url).hostname.toLowerCase());
+  } catch {
+    return false;
+  }
 }
 
+// The server runs request scripts in node:vm (not a security boundary) and can reach any URL, so it
+// only answers callers that reach it through one of these hosts (plus HTTP_CLIENT_ALLOWED_HOSTS).
 function allowedHosts(): string[] {
   const extra = (process.env.HTTP_CLIENT_ALLOWED_HOSTS ?? "")
     .split(",")
@@ -18,9 +21,6 @@ function allowedHosts(): string[] {
 
 /** Returns a response to send instead of handling the request, or null when it may proceed. */
 export function rejectHttpClientRequest(request: Request, requireHeader: boolean): Response | null {
-  if (!httpClientServerEnabled()) {
-    return Response.json({ error: "HTTP client server is disabled." }, { status: 404 });
-  }
   // Other sites must not drive this endpoint from a visitor's browser (CSRF, DNS rebinding).
   const host = (request.headers.get("host") ?? "").replace(/:\d+$/, "").toLowerCase();
   if (!allowedHosts().includes(host)) {
