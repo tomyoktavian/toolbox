@@ -1,7 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { AlertCircle, Check, ChevronDown, ChevronRight, Clipboard, Clock, Terminal, Trash2, X } from "lucide-react";
+import {
+  AlertCircle,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Clipboard,
+  Clock,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Terminal,
+  Trash2,
+  X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { curlFor, isFailedEntry, type ConsoleEntry } from "@/lib/http-client/ui/console";
 import type { HttpClientHost } from "@/lib/http-client/ui/host";
@@ -34,15 +46,26 @@ export function ConsoleBar({
   host,
   open,
   onToggle,
+  sidebar,
 }: {
   host: HttpClientHost;
   open: boolean;
   onToggle: () => void;
+  sidebar: { open: boolean; onToggle: () => void; shortcut: string };
 }) {
   const entries = useConsoleEntries(host);
   const failed = entries.filter(isFailedEntry).length;
   return (
-    <footer className="flex h-6 shrink-0 items-center justify-end gap-1 border-t bg-muted/40 px-2 text-[11px]">
+    <footer className="flex h-6 shrink-0 items-center justify-between gap-1 border-t bg-muted/40 px-2 text-[11px]">
+      <button
+        onClick={sidebar.onToggle}
+        aria-pressed={sidebar.open}
+        aria-label={sidebar.open ? "Sembunyikan sidebar" : "Tampilkan sidebar"}
+        data-tip={`${sidebar.open ? "Sembunyikan" : "Tampilkan"} sidebar (${sidebar.shortcut})`}
+        className="flex items-center rounded px-1.5 py-0.5 hover:bg-accent"
+      >
+        {sidebar.open ? <PanelLeftClose size={13} /> : <PanelLeftOpen size={13} />}
+      </button>
       <button
         onClick={onToggle}
         aria-pressed={open}

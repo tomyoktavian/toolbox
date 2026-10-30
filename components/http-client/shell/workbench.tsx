@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -15,6 +16,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { usePanelRef } from "react-resizable-panels";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { cn } from "@/lib/utils";
 import { BridgeProvider } from "@/lib/http-client/ui/bridge";
@@ -33,6 +35,7 @@ const CONSOLE_HEIGHT_KEY = "http-client:console-height";
 const CONSOLE_MIN_HEIGHT = 120;
 const CONSOLE_DEFAULT_HEIGHT = 280;
 const SIDEBAR_WIDTH_KEY = "http-client:sidebar-width";
+const SIDEBAR_OPEN_KEY = "http-client:sidebar-open";
 const SIDEBAR_MIN_WIDTH = 220;
 const SIDEBAR_DEFAULT_WIDTH = 300;
 
@@ -86,6 +89,11 @@ export function Workbench() {
     () => Math.max(SIDEBAR_MIN_WIDTH, Number(readStored(SIDEBAR_WIDTH_KEY)) || SIDEBAR_DEFAULT_WIDTH),
   );
   const groupRef = useRef<HTMLDivElement>(null);
+  const sidebarRef = usePanelRef();
+  // Hidden by collapsing the panel, not by unmounting it, so its filter, open folders and scroll survive.
+  const [startOpen] = useState(() => readStored(SIDEBAR_OPEN_KEY) !== "0");
+  const [sidebarOpen, setSidebarOpen] = useState(startOpen);
+  const lastSidebarWidth = useRef(sidebarWidth);
   const tabStripRef = useRef<HTMLDivElement>(null);
 
   // Keep the active tab visible, e.g. a request just added at the far end of a long strip.
@@ -100,11 +108,50 @@ export function Workbench() {
     if (!meta.isUserInteraction) return;
     const share = layout["http-sidebar"];
     const total = groupRef.current?.clientWidth;
-    if (share === undefined || !total) return;
+    // A collapsed sidebar (zero share) is not a width worth remembering.
+    if (!share || !total) return;
+    const width = Math.round((share / 100) * total);
+    lastSidebarWidth.current = width;
     try {
-      localStorage.setItem(SIDEBAR_WIDTH_KEY, String(Math.round((share / 100) * total)));
+      localStorage.setItem(SIDEBAR_WIDTH_KEY, String(width));
     } catch {}
   };
+
+  const toggleSidebar = useCallback((): void => {
+    const panel = sidebarRef.current;
+    if (!panel) return;
+    // State is set here as well as from onResize: the library's callback is there for the divider being
+    // dragged, and a button press must not depend on it being called.
+    if (panel.isCollapsed()) {
+      panel.expand();
+      // A sidebar that started hidden has no earlier size to come back to, so give it the saved width.
+      panel.resize(lastSidebarWidth.current);
+      setSidebarOpen(true);
+    } else {
+      panel.collapse();
+      setSidebarOpen(false);
+    }
+  }, [sidebarRef]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SIDEBAR_OPEN_KEY, sidebarOpen ? "1" : "0");
+    } catch {}
+  }, [sidebarOpen]);
+
+  const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+  const sidebarShortcut = isMac ? "⌘B" : "Ctrl+B";
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key.toLowerCase() !== "b" || event.altKey || event.shiftKey) return;
+      const modifier = isMac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
+      if (!modifier) return;
+      event.preventDefault();
+      toggleSidebar();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isMac, toggleSidebar]);
 
   useEffect(() => {
     try {
@@ -144,10 +191,17 @@ export function Workbench() {
       >
         <ResizablePanel
           id="http-sidebar"
-          defaultSize={sidebarWidth}
+          panelRef={sidebarRef}
+          defaultSize={startOpen ? sidebarWidth : 0}
           minSize={SIDEBAR_MIN_WIDTH}
           maxSize="50%"
-          className="border-r"
+          collapsible
+          collapsedSize={0}
+          // The open state follows the real size, so dragging the divider closed counts too.
+          onResize={(size) => setSidebarOpen(size.inPixels > 0)}
+          // A hidden sidebar must not be reachable with Tab either.
+          inert={!sidebarOpen}
+          className={cn("border-r", !sidebarOpen && "overflow-hidden border-r-0")}
         >
           <BridgeProvider channel={host.sidebar}>
             <HttpTab />
@@ -288,7 +342,12 @@ export function Workbench() {
         </ResizablePanel>
       </ResizablePanelGroup>
       </div>
-      <ConsoleBar host={host} open={consoleOpen} onToggle={() => setConsoleOpen(!consoleOpen)} />
+      <ConsoleBar
+        host={host}
+        open={consoleOpen}
+        onToggle={() => setConsoleOpen(!consoleOpen)}
+        sidebar={{ open: sidebarOpen, onToggle: toggleSidebar, shortcut: sidebarShortcut }}
+      />
       <TooltipLayer />
       <HostDialogs host={host} />
     </div>
