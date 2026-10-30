@@ -1,6 +1,6 @@
 import { Workspace } from "@/lib/http-client/core/workspace/workspace";
 import { remote } from "../remote";
-import { adoptServerData, IdbStore } from "./idb-store";
+import { adoptServerData, adoptServerHistory, IdbStore, idbHistory } from "./idb-store";
 
 let ready: Promise<Workspace> | undefined;
 
@@ -8,10 +8,8 @@ let ready: Promise<Workspace> | undefined;
 export function workspace(): Promise<Workspace> {
   ready ??= (async () => {
     await adoptServerData(() => remote("tree"));
-    return new Workspace(new IdbStore(), (requestId) =>
-      // History lives on the server; failing to clear it must not stop a delete.
-      remote("clearHistory", requestId).catch(() => {}),
-    );
+    await adoptServerHistory((requestIds) => remote("readHistories", requestIds));
+    return new Workspace(new IdbStore(), (requestId) => idbHistory.deleteHistory(requestId));
   })().catch((error) => {
     ready = undefined;
     throw error;

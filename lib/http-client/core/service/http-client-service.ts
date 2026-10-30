@@ -43,7 +43,9 @@ import {
   type VarBucket,
 } from '../scripts/sandbox';
 import {
+  DEFAULT_HISTORY_LIMIT,
   mergePairs,
+  summarizeHistory,
   Workspace,
   type ContextChanges,
   type HttpTree,
@@ -87,7 +89,7 @@ export interface AgentSendInput {
   environment?: string;
 }
 
-export const DEFAULT_HISTORY_LIMIT = 20;
+export { DEFAULT_HISTORY_LIMIT };
 
 export interface HttpClientServiceOptions {
   historyLimit?: number;
@@ -96,6 +98,8 @@ export interface HttpClientServiceOptions {
 export interface RunOutcome extends SendOutcome {
   /** Variable and token changes the run made; apply them to wherever the data is kept. */
   changes: ContextChanges;
+  /** The response as a history entry, for the caller to store; absent when the request is not saved. */
+  historyEntry?: ResponseHistoryEntry;
 }
 
 /** Runs requests. The data operations come from Workspace; this adds sending, history and the agent tools. */
@@ -139,6 +143,14 @@ export class HttpClientService extends Workspace {
     return this.historyStore.deleteHistory(requestId);
   }
 
+  /** The saved history of several requests at once; requests without any are left out. */
+  async readHistories(requestIds: readonly string[]): Promise<Record<string, ResponseHistoryEntry[]>> {
+    const rows = await Promise.all(
+      requestIds.map(async (id) => [id, await this.historyStore.readHistory(id)] as const),
+    );
+    return Object.fromEntries(rows.filter(([, entries]) => entries.length > 0));
+  }
+
   async curl(collectionId: string, request: HttpRequest, environmentId?: string): Promise<string> {
     const ctx = await this.context(collectionId, request.id, environmentId);
     const prepared = await prepareRequest(
@@ -165,10 +177,13 @@ export class HttpClientService extends Workspace {
     options: { environmentId?: string; signal?: AbortSignal } = {},
   ): Promise<SendOutcome> {
     const ctx = await this.context(collectionId, request.id, options.environmentId);
-    const { changes, ...outcome } = await this.sendWith(ctx, request, {
+    const { changes, historyEntry, ...outcome } = await this.sendWith(ctx, request, {
       ...(options.signal ? { signal: options.signal } : {}),
     });
     await this.applyRunChanges(collectionId, request.id, ctx, changes);
+    if (historyEntry && this.historyLimit > 0) {
+      await this.historyStore.pushHistory(historyEntry, this.historyLimit);
+    }
     return outcome;
   }
 
@@ -258,24 +273,22 @@ export class HttpClientService extends Workspace {
       record(outcome.changes);
     }
 
-    if (this.historyLimit > 0 && ctx.collection && findRequest(ctx.collection, request.id)) {
+    let historyEntry: ResponseHistoryEntry | undefined;
+    if (ctx.collection && findRequest(ctx.collection, request.id)) {
       const tests = reports.flatMap((report) => report.tests);
-      await this.historyStore.pushHistory(
-        {
-          id: newId(),
-          requestId: request.id,
-          at: Date.now(),
-          method: effective.method,
-          ...(ctx.environment ? { environmentName: ctx.environment.name } : {}),
-          testsPassed: tests.filter((test) => test.passed).length,
-          testsTotal: tests.length,
-          response,
-        },
-        this.historyLimit,
-      );
+      historyEntry = {
+        id: newId(),
+        requestId: request.id,
+        at: Date.now(),
+        method: effective.method,
+        ...(ctx.environment ? { environmentName: ctx.environment.name } : {}),
+        testsPassed: tests.filter((test) => test.passed).length,
+        testsTotal: tests.length,
+        response,
+      };
     }
 
-    return { response, reports, changes };
+    return { response, reports, changes, ...(historyEntry ? { historyEntry } : {}) };
   }
 
   async agentSend(input: AgentSendInput): Promise<AgentSendResult> {
@@ -1086,18 +1099,6 @@ function scriptChain(
   return {
     preRequest: owners.map((s) => s?.preRequest ?? '').filter((code) => code.trim()),
     postResponse: owners.map((s) => s?.postResponse ?? '').filter((code) => code.trim()),
-  };
-}
-
-export function summarizeHistory(entry: ResponseHistoryEntry): ResponseHistorySummary {
-  const { response, ...rest } = entry;
-  return {
-    ...rest,
-    url: response.url,
-    status: response.status,
-    statusText: response.statusText,
-    timeMs: response.timeMs,
-    sizeBytes: response.sizeBytes,
   };
 }
 

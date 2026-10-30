@@ -5,7 +5,9 @@ import type {
   KeyValue,
   RequestScripts,
 } from "@/lib/http-client/core";
+import { DEFAULT_HISTORY_LIMIT, summarizeHistory } from "@/lib/http-client/core/workspace/workspace";
 import { remote } from "../remote";
+import { idbHistory } from "./idb-store";
 import { workspace } from "./workspace";
 
 /** Authorization-code flows in progress: where to save the token once the server has it. */
@@ -83,11 +85,30 @@ export const localOps = {
     (await workspace()).store.setActiveEnvironment(environmentId),
   saveGlobals: async (globals: KeyValue[]) => (await workspace()).saveGlobals(globals),
 
+  history: async (requestId: string) => {
+    await workspace();
+    return (await idbHistory.readHistory(requestId)).map(summarizeHistory);
+  },
+  historyEntry: async (requestId: string, entryId: string) => {
+    await workspace();
+    return idbHistory.getEntry(requestId, entryId);
+  },
+  deleteHistoryEntry: async (_requestId: string, entryId: string) => {
+    await workspace();
+    await idbHistory.deleteEntry(entryId);
+  },
+  clearHistory: async (requestId: string) => {
+    await workspace();
+    return idbHistory.deleteHistory(requestId);
+  },
+
   send: async (collectionId: string, request: HttpRequest, environmentId?: string) => {
     const space = await workspace();
     const context = await space.context(collectionId, request.id, environmentId);
-    const { changes, ...outcome } = await remote("send", context, request);
+    const { changes, historyEntry, ...outcome } = await remote("send", context, request);
     await space.applyRunChanges(collectionId, request.id, context, changes);
+    // A response that cannot be saved to history must not turn a successful send into an error.
+    if (historyEntry) await idbHistory.pushHistory(historyEntry, DEFAULT_HISTORY_LIMIT).catch(() => {});
     return outcome;
   },
   snippet: async (

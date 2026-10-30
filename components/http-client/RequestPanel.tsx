@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Code, Columns2, Eye, FileCode2, Plus, Rows2, Save, Send, Square } from 'lucide-react';
 import type {
   Collection,
@@ -23,7 +23,8 @@ import { ParamsEditor } from './bulk/ParamsEditor';
 import { SnippetDialog } from './SnippetDialog';
 import { ResponseView } from './ResponseView';
 import { ScriptEditor } from './ScriptEditor';
-import { SplitPane, clampRatio, type SplitDirection } from './SplitPane';
+import { SplitPane } from './SplitPane';
+import { paneLayout } from './layout-store';
 import { VarInput, VarScopeProvider } from './VarInput';
 import { WsConsole } from './WsConsole';
 import {
@@ -51,8 +52,6 @@ interface PanelViewState extends Record<string, unknown> {
   httpRequestId?: string;
   httpEnvironmentId?: string;
   httpAutoReconnect?: boolean;
-  httpSplit?: SplitDirection;
-  httpSplitRatio?: number;
 }
 
 type Tab = 'params' | 'auth' | 'headers' | 'body' | 'pre-request' | 'tests';
@@ -79,8 +78,12 @@ export function RequestPanel() {
   const [globals, setGlobals] = useState<KeyValue[]>([]);
   const [environmentId, setEnvironmentId] = useState<string | undefined>(saved.httpEnvironmentId);
   const [autoReconnect, setAutoReconnect] = useState(saved.httpAutoReconnect !== false);
-  const [split, setSplit] = useState<SplitDirection>(saved.httpSplit ?? 'vertical');
-  const [splitRatio, setSplitRatio] = useState(clampRatio(saved.httpSplitRatio ?? 0.4));
+  // The pane layout is shared by every request tab. While the divider is dragged this tab follows the
+  // pointer on its own; the others are told once, when it is let go.
+  const layout = useSyncExternalStore(paneLayout.subscribe, paneLayout.getSnapshot, paneLayout.getServerSnapshot);
+  const [dragRatio, setDragRatio] = useState<number | undefined>();
+  const split = layout.split;
+  const splitRatio = dragRatio ?? layout.splitRatio;
   const [tab, setTab] = useState<Tab>('params');
   const [response, setResponse] = useState<HttpResponse | undefined>();
   const [history, setHistory] = useState<ResponseHistorySummary[]>([]);
@@ -100,6 +103,8 @@ export function RequestPanel() {
   const [snippetFor, setSnippetFor] = useState<HttpRequest | undefined>();
   const draftRef = useRef<HttpRequest | undefined>(undefined);
   draftRef.current = draft;
+  // Whether this tab has already shown or sent something; the saved response is restored only before that.
+  const settledRef = useRef(false);
 
   const dirty = useMemo(
     () => Boolean(draft && saved0 && JSON.stringify(draft) !== JSON.stringify(saved0)),
@@ -117,10 +122,8 @@ export function RequestPanel() {
       httpRequestId: requestId,
       ...(environmentId ? { httpEnvironmentId: environmentId } : {}),
       httpAutoReconnect: autoReconnect,
-      httpSplit: split,
-      httpSplitRatio: splitRatio,
     });
-  }, [collectionId, requestId, environmentId, autoReconnect, split, splitRatio]);
+  }, [collectionId, requestId, environmentId, autoReconnect]);
 
   useEffect(() => {
     const off = onMessage((msg) => {
@@ -162,6 +165,7 @@ export function RequestPanel() {
         case 'http-running':
           setRunning(msg.running as boolean);
           if (msg.running) {
+            settledRef.current = true;
             setError(undefined);
             setResponse(undefined);
             setSkipped(false);
@@ -268,9 +272,17 @@ export function RequestPanel() {
           setNotice({ message: 'Perintah cURL dikonversi ke request ini.', level: 'info' });
           break;
         }
-        case 'http-history':
-          setHistory(msg.history as ResponseHistorySummary[]);
+        case 'http-history': {
+          const list = msg.history as ResponseHistorySummary[];
+          setHistory(list);
+          // The first list after the tab opens: show the newest saved response, as if the last send never went away.
+          if (!settledRef.current) {
+            settledRef.current = true;
+            const newest = list[0];
+            if (newest) post({ type: 'http-history-open', requestId, entryId: newest.id });
+          }
           break;
+        }
         case 'http-history-entry': {
           const entry = msg.entry as ResponseHistoryEntry;
           setResponse(entry.response);
@@ -455,7 +467,7 @@ export function RequestPanel() {
           />
           <button
             data-tip={split === 'vertical' ? 'Tata letak kiri-kanan' : 'Tata letak atas-bawah'}
-            onClick={() => setSplit(split === 'vertical' ? 'horizontal' : 'vertical')}
+            onClick={() => paneLayout.set({ split: split === 'vertical' ? 'horizontal' : 'vertical' })}
             className="rounded p-1 opacity-70 hover:opacity-100"
           >
             {split === 'vertical' ? <Columns2 size={14} /> : <Rows2 size={14} />}
@@ -562,7 +574,11 @@ export function RequestPanel() {
       <SplitPane
         direction={split}
         ratio={splitRatio}
-        onRatioChange={setSplitRatio}
+        onRatioChange={setDragRatio}
+        onRatioCommit={(ratio) => {
+          setDragRatio(undefined);
+          paneLayout.set({ splitRatio: ratio });
+        }}
         first={
       <div className="flex h-full min-h-0 flex-col">
         <div className="flex shrink-0 items-center gap-3 overflow-x-auto border-b border-[var(--vscode-panel-border)] px-3">

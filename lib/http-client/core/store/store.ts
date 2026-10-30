@@ -106,11 +106,10 @@ export class FileStore implements HttpClientStore, HistoryStore {
     return (await this.readOne<ResponseHistoryEntry[]>(HISTORY, requestId)) ?? [];
   }
 
-  async pushHistory(entry: ResponseHistoryEntry, limit: number): Promise<ResponseHistoryEntry[]> {
+  async pushHistory(entry: ResponseHistoryEntry, limit: number): Promise<void> {
     const next = [entry, ...(await this.readHistory(entry.requestId))].slice(0, Math.max(0, limit));
     if (next.length === 0) await this.removeOne(HISTORY, entry.requestId);
     else await this.writeOne(HISTORY, entry.requestId, next);
-    return next;
   }
 
   async writeHistory(requestId: string, entries: ResponseHistoryEntry[]): Promise<void> {

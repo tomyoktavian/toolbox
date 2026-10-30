@@ -30,10 +30,11 @@ export interface HttpClientStore {
   ensureSeed(): Promise<void>;
 }
 
-/** Saved responses per request. They stay on the server, next to the runner that produces them. */
+/** Saved responses per request. Kept in the browser on IndexedDB; the file store serves the agent tools. */
 export interface HistoryStore {
   readHistory(requestId: string): Promise<ResponseHistoryEntry[]>;
-  pushHistory(entry: ResponseHistoryEntry, limit: number): Promise<ResponseHistoryEntry[]>;
+  /** Adds an entry, then drops the oldest ones of that request beyond `limit`. */
+  pushHistory(entry: ResponseHistoryEntry, limit: number): Promise<void>;
   writeHistory(requestId: string, entries: ResponseHistoryEntry[]): Promise<void>;
   deleteHistory(requestId: string): Promise<boolean>;
 }

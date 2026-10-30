@@ -1,22 +1,40 @@
-import { createCollection, createEnvironment } from "@/lib/http-client/core/model/factory";
-import type { Collection, Environment } from "@/lib/http-client/core/model/types";
-import type { HttpClientState, HttpClientStore } from "@/lib/http-client/core/store/types";
+import { createCollection, createEnvironment, eachRequest } from "@/lib/http-client/core/model/factory";
+import type {
+  Collection,
+  Environment,
+  ResponseHistoryEntry,
+} from "@/lib/http-client/core/model/types";
+import type {
+  HistoryStore,
+  HttpClientState,
+  HttpClientStore,
+} from "@/lib/http-client/core/store/types";
 import type { HttpTree } from "@/lib/http-client/core/workspace/workspace";
-import { createDatabase, defineStore } from "@/lib/indexed-db";
+import { createDatabase, defineStore, IndexedDbError } from "@/lib/indexed-db";
 
 type MetaValue = HttpClientState | boolean;
 
 const STATE_KEY = "state";
 const ADOPTED_KEY = "adopted-server-data";
+const HISTORY_ADOPTED_KEY = "adopted-server-history";
+/** How many of the oldest entries to drop when the browser reports it is out of space. */
+const QUOTA_EVICT_COUNT = 20;
 
-/** The browser's copy of collections and environments. `meta` holds the state record and flags. */
+/**
+ * The browser's data. `meta` holds the state record and flags, `history` the saved responses
+ * (one row each; `byRequest` lists a request's entries by time, `byAt` finds the oldest overall).
+ */
 export const httpClientDb = createDatabase({
   name: "http-client",
-  version: 1,
+  version: 2,
   stores: {
     collections: defineStore<Collection>({ keyPath: "id" }),
     environments: defineStore<Environment>({ keyPath: "id" }),
     meta: defineStore<MetaValue>(),
+    history: defineStore<ResponseHistoryEntry>({
+      keyPath: "id",
+      indexes: { byRequest: { keyPath: ["requestId", "at"] }, byAt: { keyPath: "at" } },
+    }),
   },
 });
 
@@ -116,6 +134,98 @@ export class IdbStore implements HttpClientStore {
       }
     });
   }
+}
+
+const entriesOf = (requestId: string) =>
+  IDBKeyRange.bound([requestId, -Infinity], [requestId, Infinity]);
+
+/** Saved responses in IndexedDB, newest first per request. */
+export class IdbHistory implements HistoryStore {
+  async readHistory(requestId: string): Promise<ResponseHistoryEntry[]> {
+    const entries = await httpClientDb.store("history").index("byRequest").getAll(entriesOf(requestId));
+    return entries.reverse();
+  }
+
+  getEntry(requestId: string, entryId: string): Promise<ResponseHistoryEntry | undefined> {
+    return httpClientDb
+      .store("history")
+      .get(entryId)
+      .then((entry) => (entry && entry.requestId === requestId ? entry : undefined));
+  }
+
+  async pushHistory(entry: ResponseHistoryEntry, limit: number): Promise<void> {
+    try {
+      await this.write(entry, limit);
+    } catch (error) {
+      if (!(error instanceof IndexedDbError && error.isQuotaExceeded)) throw error;
+      // Out of space: history is the cheapest thing to lose, so drop the oldest and try once more.
+      await this.evictOldest(QUOTA_EVICT_COUNT);
+      await this.write(entry, limit);
+    }
+  }
+
+  async writeHistory(requestId: string, entries: ResponseHistoryEntry[]): Promise<void> {
+    await httpClientDb.transaction(["history"], "readwrite", async (tx) => {
+      const history = tx.store("history");
+      await history.deleteMany(await history.index("byRequest").keys(entriesOf(requestId)));
+      await history.putMany(entries);
+    });
+  }
+
+  deleteEntry(entryId: string): Promise<void> {
+    return httpClientDb.store("history").delete(entryId);
+  }
+
+  async deleteHistory(requestId: string): Promise<boolean> {
+    return httpClientDb.transaction(["history"], "readwrite", async (tx) => {
+      const history = tx.store("history");
+      const ids = await history.index("byRequest").keys(entriesOf(requestId));
+      await history.deleteMany(ids);
+      return ids.length > 0;
+    });
+  }
+
+  async evictOldest(count: number): Promise<void> {
+    const history = httpClientDb.store("history");
+    await history.deleteMany(await history.index("byAt").keys(null, count));
+  }
+
+  private async write(entry: ResponseHistoryEntry, limit: number): Promise<void> {
+    await httpClientDb.transaction(["history"], "readwrite", async (tx) => {
+      const history = tx.store("history");
+      if (limit > 0) await history.put(entry);
+      // Oldest first; whatever is beyond the limit goes.
+      const ids = await history.index("byRequest").keys(entriesOf(entry.requestId));
+      const excess = ids.length - Math.max(0, limit);
+      if (excess > 0) await history.deleteMany(ids.slice(0, excess));
+    });
+  }
+}
+
+export const idbHistory = new IdbHistory();
+
+/**
+ * Once: copies the history the server kept before it moved into the browser. Entries have fixed
+ * ids, so running it again would change nothing; it stops asking after the first success.
+ */
+export async function adoptServerHistory(
+  readServerHistory: (requestIds: string[]) => Promise<Record<string, ResponseHistoryEntry[]>>,
+): Promise<void> {
+  const meta = httpClientDb.store("meta");
+  if (await meta.get(HISTORY_ADOPTED_KEY)) return;
+
+  const collections = await httpClientDb.store("collections").getAll();
+  const requestIds = collections.flatMap((collection) => eachRequest(collection).map((request) => request.id));
+  if (requestIds.length > 0) {
+    try {
+      const entries = Object.values(await readServerHistory(requestIds)).flat();
+      if (entries.length > 0) await httpClientDb.store("history").putMany(entries);
+    } catch {
+      // Not copied: leave the flag unset so the next load tries again.
+      return;
+    }
+  }
+  await meta.put(true, HISTORY_ADOPTED_KEY);
 }
 
 /**

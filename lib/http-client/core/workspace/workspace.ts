@@ -21,12 +21,28 @@ import type {
   KeyValue,
   RequestFolder,
   RequestScripts,
+  ResponseHistoryEntry,
+  ResponseHistorySummary,
 } from '../model/types';
 import { exportNative } from '../export/native';
 import { exportPostmanCollection, exportPostmanEnvironment } from '../export/postman-collection';
 import { hostOf, parseCurl } from '../import/curl';
 import { importAny } from '../import/detect';
 import type { HttpClientStore } from '../store/types';
+
+export const DEFAULT_HISTORY_LIMIT = 20;
+
+export function summarizeHistory(entry: ResponseHistoryEntry): ResponseHistorySummary {
+  const { response, ...rest } = entry;
+  return {
+    ...rest,
+    url: response.url,
+    status: response.status,
+    statusText: response.statusText,
+    timeMs: response.timeMs,
+    sizeBytes: response.sizeBytes,
+  };
+}
 
 export interface HttpTree {
   collections: Collection[];

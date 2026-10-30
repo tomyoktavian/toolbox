@@ -62,7 +62,7 @@ export type {
   ScriptReport,
   SendOutcome,
 } from './service/http-client-service';
-export { mergePairs, Workspace } from './workspace/workspace';
+export { mergePairs, summarizeHistory, Workspace } from './workspace/workspace';
 export type {
   ContextChanges,
   HttpTree,

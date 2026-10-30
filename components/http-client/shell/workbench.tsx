@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { CopyPlus, Layers, Folder, Globe, ListX, PanelTopClose, SlidersHorizontal, X } from "lucide-react";
 import {
   ContextMenu,
@@ -26,6 +32,9 @@ const CONSOLE_OPEN_KEY = "http-client:console-open";
 const CONSOLE_HEIGHT_KEY = "http-client:console-height";
 const CONSOLE_MIN_HEIGHT = 120;
 const CONSOLE_DEFAULT_HEIGHT = 280;
+const SIDEBAR_WIDTH_KEY = "http-client:sidebar-width";
+const SIDEBAR_MIN_WIDTH = 220;
+const SIDEBAR_DEFAULT_WIDTH = 300;
 
 function readStored(key: string): string | null {
   try {
@@ -72,6 +81,23 @@ export function Workbench() {
     () => Math.max(CONSOLE_MIN_HEIGHT, Number(readStored(CONSOLE_HEIGHT_KEY)) || CONSOLE_DEFAULT_HEIGHT),
   );
 
+  // Read once: the panel takes it as its starting size, and the width is saved as the user drags.
+  const [sidebarWidth] = useState(
+    () => Math.max(SIDEBAR_MIN_WIDTH, Number(readStored(SIDEBAR_WIDTH_KEY)) || SIDEBAR_DEFAULT_WIDTH),
+  );
+  const groupRef = useRef<HTMLDivElement>(null);
+
+  // Saved in pixels, so the sidebar keeps its width when the window is a different size next time.
+  const onLayoutChanged = (layout: Record<string, number>, meta: { isUserInteraction: boolean }): void => {
+    if (!meta.isUserInteraction) return;
+    const share = layout["http-sidebar"];
+    const total = groupRef.current?.clientWidth;
+    if (share === undefined || !total) return;
+    try {
+      localStorage.setItem(SIDEBAR_WIDTH_KEY, String(Math.round((share / 100) * total)));
+    } catch {}
+  };
+
   useEffect(() => {
     try {
       localStorage.setItem(CONSOLE_OPEN_KEY, consoleOpen ? "1" : "0");
@@ -102,8 +128,19 @@ export function Workbench() {
   return (
     <div className="http-client-root flex h-full w-full flex-col overflow-hidden bg-background text-foreground">
       <div className="min-h-0 flex-1">
-      <ResizablePanelGroup orientation="horizontal" className="h-full w-full">
-        <ResizablePanel id="http-sidebar" defaultSize={300} minSize={220} maxSize="50%" className="border-r">
+      <ResizablePanelGroup
+        orientation="horizontal"
+        className="h-full w-full"
+        elementRef={groupRef}
+        onLayoutChanged={onLayoutChanged}
+      >
+        <ResizablePanel
+          id="http-sidebar"
+          defaultSize={sidebarWidth}
+          minSize={SIDEBAR_MIN_WIDTH}
+          maxSize="50%"
+          className="border-r"
+        >
           <BridgeProvider channel={host.sidebar}>
             <HttpTab />
           </BridgeProvider>

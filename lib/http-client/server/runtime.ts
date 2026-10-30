@@ -89,7 +89,7 @@ export interface HttpClientRuntime {
 }
 
 // Bump the suffix when the runtime's shape changes, so dev hot reloads build a fresh one.
-const GLOBAL_KEY = "__httpClientRuntime_v4";
+const GLOBAL_KEY = "__httpClientRuntime_v5";
 
 /**
  * One service per server process. Kept on globalThis because Next.js may load route modules

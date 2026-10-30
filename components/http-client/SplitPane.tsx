@@ -13,13 +13,17 @@ export function SplitPane({
   direction,
   ratio,
   onRatioChange,
+  onRatioCommit,
   first,
   second,
   maxRatio = MAX_RATIO,
 }: {
   direction: SplitDirection;
   ratio: number;
+  /** Called on every move while dragging. */
   onRatioChange: (ratio: number) => void;
+  /** Called once with the final ratio when the drag ends or the divider is reset. */
+  onRatioCommit?: (ratio: number) => void;
   first: ReactNode;
   second: ReactNode;
   maxRatio?: number;
@@ -34,13 +38,16 @@ export function SplitPane({
     const handle = event.currentTarget;
     handle.setPointerCapture(event.pointerId);
     const bounds = container.getBoundingClientRect();
+    let latest: number | undefined;
     const move = (e: PointerEvent): void => {
       const next = vertical
         ? (e.clientY - bounds.top) / bounds.height
         : (e.clientX - bounds.left) / bounds.width;
-      onRatioChange(clampRatio(next, maxRatio));
+      latest = clampRatio(next, maxRatio);
+      onRatioChange(latest);
     };
     const up = (): void => {
+      if (latest !== undefined) onRatioCommit?.(latest);
       handle.removeEventListener('pointermove', move);
       handle.removeEventListener('pointerup', up);
       handle.removeEventListener('pointercancel', up);
@@ -67,7 +74,11 @@ export function SplitPane({
         role="separator"
         aria-orientation={vertical ? 'horizontal' : 'vertical'}
         onPointerDown={onPointerDown}
-        onDoubleClick={() => onRatioChange(clampRatio(0.5, maxRatio))}
+        onDoubleClick={() => {
+          const half = clampRatio(0.5, maxRatio);
+          onRatioChange(half);
+          onRatioCommit?.(half);
+        }}
         data-tip="Geser untuk mengubah ukuran · klik dua kali untuk 50/50"
         className={`group relative z-10 shrink-0 select-none touch-none ${
           vertical ? 'h-1.5 cursor-row-resize' : 'w-1.5 cursor-col-resize'

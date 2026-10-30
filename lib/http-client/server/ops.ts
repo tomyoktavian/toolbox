@@ -21,20 +21,16 @@ type OAuthStart =
   | { flowId: string; url: string };
 
 /**
- * What the server does for the browser: run requests and sockets, keep response history, and fetch
- * URLs the browser cannot reach. Collections and environments live in the browser; every call that
+ * What the server does for the browser: run requests and sockets, and fetch URLs the browser cannot
+ * reach. History lives in the browser too; the server's old copy is only read once. Collections and environments live in the browser; every call that
  * needs them receives a RunContext instead of reading a store.
  */
 export const ops = {
   /** The server's own saved data, read once to seed the browser's copy on first use. */
   tree: () => runtime().service.tree(),
 
-  history: (requestId: string) => runtime().service.history(requestId),
-  historyEntry: (requestId: string, entryId: string) =>
-    runtime().service.historyEntry(requestId, entryId),
-  deleteHistoryEntry: (requestId: string, entryId: string) =>
-    runtime().service.deleteHistoryEntry(requestId, entryId),
-  clearHistory: (requestId: string) => runtime().service.clearHistory(requestId),
+  /** The server's saved history for these requests, read once to seed the browser's copy. */
+  readHistories: (requestIds: string[]) => runtime().service.readHistories(requestIds),
 
   /** Runs a request. The variable and token changes it made come back in `changes` for the browser to save. */
   send: async (context: RunContext, request: HttpRequest) => {
