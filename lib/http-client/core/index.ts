@@ -49,7 +49,8 @@ export { WsRunner } from './runner/ws-runner';
 export { staticStorage } from './ports/storage';
 export type { WsConnect } from './ports/socket';
 
-export { HttpClientStore } from './store/store';
+export { FileStore } from './store/store';
+export type { HistoryStore, HttpClientState, HttpClientStore } from './store/types';
 
 export type {
   AgentDeleteInput,
@@ -57,10 +58,19 @@ export type {
   AgentMutationResult,
   AgentSaveEnvironmentInput,
   AgentSaveRequestInput,
-  HttpTree,
+  RunOutcome,
   ScriptReport,
   SendOutcome,
 } from './service/http-client-service';
+export { mergePairs, Workspace } from './workspace/workspace';
+export type {
+  ContextChanges,
+  HttpTree,
+  ImportSummary,
+  OAuthToken,
+  RunContext,
+  VariablePatch,
+} from './workspace/workspace';
 export { DEFAULT_HISTORY_LIMIT, HttpClientService } from './service/http-client-service';
 export type { ScriptLog, ScriptTestResult, ScriptVisualization } from './scripts/sandbox';
 

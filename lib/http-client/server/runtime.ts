@@ -2,9 +2,11 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { join } from "node:path";
 import WebSocket from "ws";
 import {
+  FileStore,
   HttpClientService,
   staticStorage,
   WsRunner,
+  type OAuthToken,
   type WsConnect,
   type WsSessionState,
 } from "@/lib/http-client/core";
@@ -83,11 +85,11 @@ export interface HttpClientRuntime {
   wsListeners: Set<(state: WsSessionState) => void>;
   /** In-flight sends, keyed by request id, so a later send or a cancel aborts the previous one. */
   running: Map<string, AbortController>;
-  oauthFlows: Map<string, { promise: Promise<void>; cancel: () => void }>;
+  oauthFlows: Map<string, { promise: Promise<OAuthToken>; cancel: () => void }>;
 }
 
 // Bump the suffix when the runtime's shape changes, so dev hot reloads build a fresh one.
-const GLOBAL_KEY = "__httpClientRuntime_v3";
+const GLOBAL_KEY = "__httpClientRuntime_v4";
 
 /**
  * One service per server process. Kept on globalThis because Next.js may load route modules
@@ -106,7 +108,7 @@ export function runtime(): HttpClientRuntime {
   });
 
   const created: HttpClientRuntime = {
-    service: new HttpClientService(staticStorage(root), { fetch: recordingFetch }),
+    service: new HttpClientService(new FileStore(staticStorage(root)), { fetch: recordingFetch }),
     ws,
     wsListeners,
     running: new Map(),

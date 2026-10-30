@@ -9,12 +9,10 @@ import {
   newId,
   removeFolder,
   removeRequest,
-  summarize,
 } from '../model/factory';
 import type {
   AuthConfig,
   Collection,
-  CollectionSummary,
   Environment,
   HttpRequest,
   HttpResponse,
@@ -33,13 +31,8 @@ import {
   type RunnerDeps,
 } from '../runner/rest-runner';
 import { toCurl } from '../runner/curl';
-import type { ResolvedAuth } from '../model/factory';
-import { importAny } from '../import/detect';
 import { fetchSpecText } from '../import/fetch-spec';
-import { exportNative } from '../export/native';
-import { exportPostmanCollection, exportPostmanEnvironment } from '../export/postman-collection';
-import { HttpClientStore } from '../store/store';
-import type { HttpClientStoragePort } from '../ports/storage';
+import type { HistoryStore, HttpClientStore } from '../store/types';
 import {
   runScript,
   type ScriptLog,
@@ -49,14 +42,17 @@ import {
   type ScriptTestResult,
   type VarBucket,
 } from '../scripts/sandbox';
+import {
+  mergePairs,
+  Workspace,
+  type ContextChanges,
+  type HttpTree,
+  type ImportSummary,
+  type RunContext,
+  type VariablePatch,
+} from '../workspace/workspace';
 
-export interface HttpTree {
-  collections: Collection[];
-  summaries: CollectionSummary[];
-  environments: Environment[];
-  activeEnvironmentId?: string;
-  globals: KeyValue[];
-}
+export type { HttpTree } from '../workspace/workspace';
 
 export interface ScriptReport {
   phase: 'pre-request' | 'post-response';
@@ -97,18 +93,23 @@ export interface HttpClientServiceOptions {
   historyLimit?: number;
 }
 
-export class HttpClientService {
-  readonly store: HttpClientStore;
-  private seeded = false;
-  private seeding: Promise<void> | undefined;
+export interface RunOutcome extends SendOutcome {
+  /** Variable and token changes the run made; apply them to wherever the data is kept. */
+  changes: ContextChanges;
+}
+
+/** Runs requests. The data operations come from Workspace; this adds sending, history and the agent tools. */
+export class HttpClientService extends Workspace {
+  private readonly historyStore: HistoryStore;
   private historyLimit: number;
 
   constructor(
-    storage: HttpClientStoragePort,
+    store: HttpClientStore & HistoryStore,
     private readonly deps: RunnerDeps = {},
     options: HttpClientServiceOptions = {},
   ) {
-    this.store = new HttpClientStore(storage);
+    super(store, (requestId) => store.deleteHistory(requestId));
+    this.historyStore = store;
     this.historyLimit = options.historyLimit ?? DEFAULT_HISTORY_LIMIT;
   }
 
@@ -117,23 +118,25 @@ export class HttpClientService {
   }
 
   async history(requestId: string): Promise<ResponseHistorySummary[]> {
-    return (await this.store.readHistory(requestId)).map(summarizeHistory);
+    return (await this.historyStore.readHistory(requestId)).map(summarizeHistory);
   }
 
   async historyEntry(
     requestId: string,
     entryId: string,
   ): Promise<ResponseHistoryEntry | undefined> {
-    return (await this.store.readHistory(requestId)).find((entry) => entry.id === entryId);
+    return (await this.historyStore.readHistory(requestId)).find((entry) => entry.id === entryId);
   }
 
   async deleteHistoryEntry(requestId: string, entryId: string): Promise<void> {
-    const kept = (await this.store.readHistory(requestId)).filter((entry) => entry.id !== entryId);
-    await this.store.writeHistory(requestId, kept);
+    const kept = (await this.historyStore.readHistory(requestId)).filter(
+      (entry) => entry.id !== entryId,
+    );
+    await this.historyStore.writeHistory(requestId, kept);
   }
 
   clearHistory(requestId: string): Promise<boolean> {
-    return this.store.deleteHistory(requestId);
+    return this.historyStore.deleteHistory(requestId);
   }
 
   async curl(collectionId: string, request: HttpRequest, environmentId?: string): Promise<string> {
@@ -151,183 +154,52 @@ export class HttpClientService {
     return toCurl(prepared);
   }
 
-  async tree(): Promise<HttpTree> {
-    if (!this.seeded) {
-      // Concurrent first calls share one seed run; otherwise each would create its own seed.
-      this.seeding ??= this.store.ensureSeed();
-      await this.seeding;
-      this.seeded = true;
-    }
-    const [collections, environments, state] = await Promise.all([
-      this.store.allCollections(),
-      this.store.listEnvironments(),
-      this.store.readState(),
-    ]);
-    return {
-      collections,
-      summaries: collections.map(summarize),
-      environments,
-      globals: state.globals ?? [],
-      ...(state.activeEnvironmentId ? { activeEnvironmentId: state.activeEnvironmentId } : {}),
-    };
-  }
-
-  async mutate(
-    collectionId: string,
-    change: (collection: Collection) => boolean | void,
-  ): Promise<Collection | undefined> {
-    const collection = await this.store.getCollection(collectionId);
-    if (!collection) return undefined;
-    if (change(collection) === false) return undefined;
-    return this.store.saveCollection(collection);
-  }
-
-  createCollection(name: string): Promise<Collection> {
-    return this.store.saveCollection(createCollection({ name }));
-  }
-
-  addRequest(
-    collectionId: string,
-    request: HttpRequest,
-    folderId?: string,
-  ): Promise<Collection | undefined> {
-    return this.mutate(collectionId, (collection) => {
-      const target = folderId ? findFolder(collection, folderId) : undefined;
-      (target ? target.requests : collection.requests).push(request);
-    });
-  }
-
-  addFolder(
-    collectionId: string,
-    folder: RequestFolder,
-    parentFolderId?: string,
-  ): Promise<Collection | undefined> {
-    return this.mutate(collectionId, (collection) => {
-      const parent = parentFolderId ? findFolder(collection, parentFolderId) : undefined;
-      (parent ? parent.folders : collection.folders).push(folder);
-    });
-  }
-
-  duplicateRequest(collectionId: string, requestId: string): Promise<Collection | undefined> {
-    return this.mutate(collectionId, (collection) => {
-      const found = findRequest(collection, requestId);
-      if (!found) return false;
-      const copy: HttpRequest = {
-        ...structuredClone(found.request),
-        id: newId(),
-        name: `${found.request.name} copy`,
-      };
-      const folderId = found.folderPath[found.folderPath.length - 1];
-      const folder = folderId ? findFolder(collection, folderId) : undefined;
-      (folder ? folder.requests : collection.requests).push(copy);
-    });
-  }
-
-  saveRequest(collectionId: string, request: HttpRequest): Promise<Collection | undefined> {
-    return this.mutate(collectionId, (collection) => {
-      const found = findRequest(collection, request.id);
-      if (!found) return false;
-      Object.assign(found.request, request);
-    });
-  }
-
-  async deleteRequest(collectionId: string, requestId: string): Promise<Collection | undefined> {
-    await this.store.deleteHistory(requestId);
-    return this.mutate(collectionId, (collection) => removeRequest(collection, requestId));
-  }
-
-  async deleteFolder(collectionId: string, folderId: string): Promise<Collection | undefined> {
-    const collection = await this.store.getCollection(collectionId);
-    const folder = collection ? findFolder(collection, folderId) : undefined;
-    if (folder) {
-      for (const request of eachRequest({ ...collection!, folders: [folder], requests: [] })) {
-        await this.store.deleteHistory(request.id);
-      }
-    }
-    return this.mutate(collectionId, (collection) => removeFolder(collection, folderId));
-  }
-
-  async deleteCollection(collectionId: string): Promise<boolean> {
-    const collection = await this.store.getCollection(collectionId);
-    if (collection) {
-      for (const request of eachRequest(collection)) await this.store.deleteHistory(request.id);
-    }
-    return this.store.deleteCollection(collectionId);
-  }
-
-  async importText(
-    text: string,
-  ): Promise<{ kind: string; collections: number; environments: number }> {
-    const result = importAny(text);
-    for (const collection of result.collections) await this.store.saveCollection(collection);
-    for (const environment of result.environments) await this.store.saveEnvironment(environment);
-    const state = await this.store.readState();
-    const first = result.environments[0];
-    if (!state.activeEnvironmentId && first) await this.store.setActiveEnvironment(first.id);
-    return {
-      kind: result.kind,
-      collections: result.collections.length,
-      environments: result.environments.length,
-    };
-  }
-
-  async importUrl(
-    url: string,
-  ): Promise<{ kind: string; collections: number; environments: number }> {
+  async importUrl(url: string): Promise<ImportSummary> {
     return this.importText(await fetchSpecText(url));
   }
 
-  async exportText(format: 'postman' | 'native', collectionId?: string): Promise<string> {
-    const collections = await this.store.allCollections();
-    const selected = collectionId ? collections.filter((c) => c.id === collectionId) : collections;
-    if (format === 'native') {
-      return exportNative(selected, await this.store.listEnvironments());
-    }
-    const single = selected[0];
-    if (!single) throw new Error('No collection to export.');
-    return exportPostmanCollection(single);
-  }
-
-  async exportEnvironmentText(environmentId: string): Promise<string> {
-    const environment = await this.store.getEnvironment(environmentId);
-    if (!environment) throw new Error('Environment not found.');
-    return exportPostmanEnvironment(environment);
-  }
-
-  async context(
-    collectionId: string,
-    requestId: string,
-    environmentId: string | undefined,
-  ): Promise<{
-    collection?: Collection;
-    environment?: Environment;
-    globals: KeyValue[];
-    folderPath: string[];
-  }> {
-    const collection = await this.store.getCollection(collectionId);
-    const state = await this.store.readState();
-    const wanted = environmentId ?? state.activeEnvironmentId;
-    const environment = wanted ? await this.store.getEnvironment(wanted) : undefined;
-    const folderPath = collection ? (findRequest(collection, requestId)?.folderPath ?? []) : [];
-    return {
-      ...(collection ? { collection } : {}),
-      ...(environment ? { environment } : {}),
-      globals: state.globals ?? [],
-      folderPath,
-    };
-  }
-
+  /** Sends a request from the data in this service's own store and saves what the run changed there. */
   async send(
     collectionId: string,
     request: HttpRequest,
     options: { environmentId?: string; signal?: AbortSignal } = {},
   ): Promise<SendOutcome> {
-    const reports: ScriptReport[] = [];
     const ctx = await this.context(collectionId, request.id, options.environmentId);
+    const { changes, ...outcome } = await this.sendWith(ctx, request, {
+      ...(options.signal ? { signal: options.signal } : {}),
+    });
+    await this.applyRunChanges(collectionId, request.id, ctx, changes);
+    return outcome;
+  }
+
+  /**
+   * Sends a request against a context the caller supplies, and reports the changes instead of
+   * saving them, so the data can live somewhere this service cannot reach (the browser).
+   */
+  async sendWith(
+    ctx: RunContext,
+    request: HttpRequest,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<RunOutcome> {
+    const reports: ScriptReport[] = [];
+    const changes: ContextChanges = {};
     const variables = {
       environment: toRecord(ctx.environment?.variables),
       collection: toRecord(ctx.collection?.variables),
       globals: toRecord(ctx.globals),
+    };
+    const record = (patches: ScriptOutcome['changes']): void => {
+      for (const [bucket, patch] of Object.entries(patches) as Array<[VarBucket, VariablePatch]>) {
+        if (Object.keys(patch).length === 0) continue;
+        for (const [key, value] of Object.entries(patch)) {
+          if (value === null) delete variables[bucket][key];
+          else variables[bucket][key] = value;
+        }
+        // There is nothing stored to update when the request has no environment or collection.
+        if (bucket === 'environment' && !ctx.environment) continue;
+        if (bucket === 'collection' && !ctx.collection) continue;
+        changes[bucket] = { ...changes[bucket], ...patch };
+      }
     };
 
     let effective = request;
@@ -340,10 +212,12 @@ export class HttpClientService {
         variables,
       });
       reports.push(toReport('pre-request', outcome));
-      await this.applyChanges(outcome.changes, ctx.environment, ctx.collection, variables);
+      record(outcome.changes);
       if (outcome.request) effective = applyScriptRequest(effective, outcome.request);
-      if (outcome.skipRequest) return { reports, skipped: true };
-      if (outcome.error) return { reports, error: `Pre-request script failed: ${outcome.error}` };
+      if (outcome.skipRequest) return { reports, skipped: true, changes };
+      if (outcome.error) {
+        return { reports, error: `Pre-request script failed: ${outcome.error}`, changes };
+      }
     }
 
     const environment = ctx.environment
@@ -363,12 +237,14 @@ export class HttpClientService {
           globals: toPairs(variables.globals),
           folderPath: ctx.folderPath,
           ...(options.signal ? { signal: options.signal } : {}),
-          onAuthRefreshed: (auth) => void this.persistAuth(collectionId, request.id, auth),
+          onAuthRefreshed: (auth) => {
+            changes.auth = auth;
+          },
         },
         this.deps,
       );
     } catch (error) {
-      return { reports, error: error instanceof Error ? error.message : String(error) };
+      return { reports, error: error instanceof Error ? error.message : String(error), changes };
     }
 
     for (const code of scripts.postResponse) {
@@ -379,12 +255,12 @@ export class HttpClientService {
         variables,
       });
       reports.push(toReport('post-response', outcome));
-      await this.applyChanges(outcome.changes, ctx.environment, ctx.collection, variables);
+      record(outcome.changes);
     }
 
     if (this.historyLimit > 0 && ctx.collection && findRequest(ctx.collection, request.id)) {
       const tests = reports.flatMap((report) => report.tests);
-      await this.store.pushHistory(
+      await this.historyStore.pushHistory(
         {
           id: newId(),
           requestId: request.id,
@@ -399,50 +275,7 @@ export class HttpClientService {
       );
     }
 
-    return { response, reports };
-  }
-
-  private async persistAuth(
-    collectionId: string,
-    requestId: string,
-    auth: ResolvedAuth,
-  ): Promise<void> {
-    await this.mutate(collectionId, (collection) => {
-      const found = findRequest(collection, requestId);
-      if (found && found.request.auth.type === 'oauth2') found.request.auth = auth;
-      else if (collection.auth.type === 'oauth2') collection.auth = auth;
-      else return false;
-    });
-  }
-
-  private async applyChanges(
-    changes: ScriptOutcome['changes'],
-    environment: Environment | undefined,
-    collection: Collection | undefined,
-    live: Record<VarBucket, Record<string, string>>,
-  ): Promise<void> {
-    for (const [bucket, patch] of Object.entries(changes) as Array<
-      [VarBucket, Record<string, string | null>]
-    >) {
-      if (Object.keys(patch).length === 0) continue;
-      for (const [key, value] of Object.entries(patch)) {
-        if (value === null) delete live[bucket][key];
-        else live[bucket][key] = value;
-      }
-      if (bucket === 'environment' && environment) {
-        await this.store.saveEnvironment({
-          ...environment,
-          variables: mergePairs(environment.variables, patch),
-        });
-      } else if (bucket === 'collection' && collection) {
-        await this.mutate(collection.id, (target) => {
-          target.variables = mergePairs(target.variables, patch);
-        });
-      } else if (bucket === 'globals') {
-        const state = await this.store.readState();
-        await this.store.writeState({ ...state, globals: mergePairs(state.globals ?? [], patch) });
-      }
-    }
+    return { response, reports, changes };
   }
 
   async agentSend(input: AgentSendInput): Promise<AgentSendResult> {
@@ -1274,22 +1107,6 @@ function toRecord(pairs: readonly KeyValue[] | undefined): Record<string, string
 
 function toPairs(values: Record<string, string>): KeyValue[] {
   return Object.entries(values).map(([key, value]) => ({ key, value, enabled: true }));
-}
-
-function mergePairs(
-  existing: readonly KeyValue[],
-  patch: Record<string, string | null>,
-): KeyValue[] {
-  const out = existing.filter((pair) => patch[pair.key] !== null).map((pair) => ({ ...pair }));
-  for (const [key, value] of Object.entries(patch)) {
-    if (value === null) continue;
-    const hit = out.find((pair) => pair.key === key);
-    if (hit) {
-      hit.value = value;
-      hit.enabled = true;
-    } else out.push({ key, value, enabled: true });
-  }
-  return out;
 }
 
 function describeCatalog(collections: readonly Collection[]): string {

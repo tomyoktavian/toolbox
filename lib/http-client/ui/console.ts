@@ -1,8 +1,8 @@
 import type { HttpRequest, ScriptLog, ScriptReport, ScriptTestResult } from "@/lib/http-client/core";
-import type { HttpClientOps } from "@/lib/http-client/server/ops";
+import type { ClientOps } from "./rpc";
 import { generateSnippet } from "@/lib/http-client/core/snippet/generate";
 
-type SendResult = Awaited<ReturnType<HttpClientOps["send"]>>;
+type SendResult = Awaited<ReturnType<ClientOps["send"]>>;
 
 /** Kept per entry so a few huge responses cannot fill the browser's memory. */
 const MAX_BODY_CHARS = 200_000;

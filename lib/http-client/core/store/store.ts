@@ -1,20 +1,19 @@
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createCollection, createEnvironment } from '../model/factory';
-import type { Collection, Environment, KeyValue, ResponseHistoryEntry } from '../model/types';
+import type { Collection, Environment, ResponseHistoryEntry } from '../model/types';
 import type { HttpClientStoragePort } from '../ports/storage';
+import type { HistoryStore, HttpClientState, HttpClientStore } from './types';
 
 const COLLECTIONS = 'collections';
 const ENVIRONMENTS = 'environments';
 const HISTORY = 'history';
 const STATE_FILE = 'state.json';
 
-export interface HttpClientState {
-  activeEnvironmentId?: string;
-  globals?: KeyValue[];
-}
+export type { HttpClientState } from './types';
 
-export class HttpClientStore {
+/** Keeps everything as JSON files under the storage root. */
+export class FileStore implements HttpClientStore, HistoryStore {
   constructor(private readonly storage: HttpClientStoragePort) {}
 
   private dir(kind: string): string {
