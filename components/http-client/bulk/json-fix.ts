@@ -64,15 +64,59 @@ export function safeJsonParse<T = any>(jsonString: string): T | null {
   }
 }
 
+/** Parses JSON, also the loose kind, and returns the `// note` written after a value, by its key path. */
+export function parseLooseJson(
+  text: string,
+): { value: any; notes: Map<string, string> } | undefined {
+  if (!text.trim()) return undefined;
+  try {
+    return { value: JSON.parse(text), notes: new Map() };
+  } catch {
+    // Not strict JSON (comments, trailing commas, ...): fall through to the permissive parser.
+  }
+  try {
+    const parser = new PermissiveJsonParser(text);
+    const value = parser.parse();
+    return { value, notes: parser.notes };
+  } catch {
+    return undefined;
+  }
+}
+
 class PermissiveJsonParser {
   private input: string;
   private index: number;
   private length: number;
+  /** Line comments that follow a value on the same line, keyed like `search[0][column]`. */
+  readonly notes = new Map<string, string>();
+  private readonly segments: string[] = [];
 
   constructor(input: string) {
     this.input = input;
     this.index = 0;
     this.length = input.length;
+  }
+
+  /** Looks ahead (without moving) from the end of a value for `, // note` on the same line. */
+  private captureTrailingNote(): void {
+    let at = this.index;
+    const skipBlanks = (): void => {
+      while (this.input[at] === " " || this.input[at] === "\t") at++;
+    };
+    skipBlanks();
+    if (this.input[at] === ",") {
+      at++;
+      skipBlanks();
+    }
+    if (this.input[at] !== "/" || this.input[at + 1] !== "/") return;
+    let end = at + 2;
+    while (end < this.length && this.input[end] !== "\n") end++;
+    const note = this.input.slice(at + 2, end).trim();
+    if (!note) return;
+    this.notes.set(
+      this.segments.map((segment, index) => (index === 0 ? segment : `[${segment}]`)).join(""),
+      note,
+    );
   }
 
   parse(): any {
@@ -198,8 +242,11 @@ class PermissiveJsonParser {
       }
 
       this.skipWhitespace();
+      this.segments.push(key);
       const value = this.parseValue();
       obj[key] = value;
+      this.captureTrailingNote();
+      this.segments.pop();
 
       this.skipWhitespace();
       if (this.peek() === ",") {
@@ -227,8 +274,11 @@ class PermissiveJsonParser {
         continue;
       }
 
+      this.segments.push(String(arr.length));
       const value = this.parseValue();
       arr.push(value);
+      this.captureTrailingNote();
+      this.segments.pop();
 
       this.skipWhitespace();
       if (this.peek() === ",") {

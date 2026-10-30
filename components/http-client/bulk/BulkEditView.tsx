@@ -3,57 +3,33 @@ import { json } from '@codemirror/lang-json';
 import { FileJson, FileText, Info } from 'lucide-react';
 import type { KeyValue } from '@/lib/http-client/core';
 import { VarCodeEditor } from '../VarCodeEditor';
-import { buildNestedObject, flattenObject } from './bulk-json';
-import { fixJsonString } from './json-fix';
+import { convertItemsToFormat, parseJsonFormat, parseTextFormat, type BulkFormat } from './bulk-format';
 
 // Ported from network-recorder's postmanV2 BulkEditView (params only).
-
-type BulkFormat = 'text' | 'json';
 
 const JSON_EXTENSIONS = [json()];
 const TEXT_EXTENSIONS: typeof JSON_EXTENSIONS = [];
 
-function convertItemsToFormat(format: BulkFormat, items: readonly KeyValue[]): string {
-  if (format === 'text') return items.map((item) => `${item.key}:${item.value}`).join('\n');
-  // JSON format - build nested structure from bracket notation
-  return JSON.stringify(buildNestedObject([...items]), null, 2);
-}
-
-function parseTextFormat(text: string): KeyValue[] {
-  const items: KeyValue[] = [];
-  for (const line of text.split('\n').filter((row) => row.trim())) {
-    const colonIndex = line.indexOf(':');
-    if (colonIndex === -1) continue;
-    const key = line.substring(0, colonIndex).trim();
-    const value = line.substring(colonIndex + 1).trim();
-    if (key) items.push({ key, value, enabled: true });
-  }
-  return items;
-}
-
-function parseJsonFormat(text: string): KeyValue[] {
-  try {
-    const parsed = JSON.parse(fixJsonString(text));
-    return flattenObject(parsed).map(({ key, value }) => ({ key, value, enabled: true }));
-  } catch {
-    return [];
-  }
-}
-
 function enabledKey(items: readonly KeyValue[]): string {
-  return JSON.stringify(items.filter((item) => item.enabled).map(({ key, value }) => ({ key, value })));
+  return JSON.stringify(
+    items.filter((item) => item.enabled).map(({ key, value, description }) => ({ key, value, description })),
+  );
 }
 
 export function BulkEditView({
   items,
   onChange,
+  kind = 'params',
 }: {
   items: readonly KeyValue[];
   onChange: (items: KeyValue[]) => void;
+  /** Query params nest bracket keys and type their values; headers stay flat text. */
+  kind?: 'params' | 'headers';
 }) {
+  const structured = kind === 'params';
   const [bulkFormat, setBulkFormat] = useState<BulkFormat>('json');
   const [bulkText, setBulkText] = useState(() =>
-    convertItemsToFormat('json', items.filter((item) => item.enabled)),
+    convertItemsToFormat('json', items.filter((item) => item.enabled), structured),
   );
   const lastEnabledItemsRef = useRef(enabledKey(items));
 
@@ -63,14 +39,13 @@ export function BulkEditView({
     const key = enabledKey(items);
     if (key === lastEnabledItemsRef.current) return;
     lastEnabledItemsRef.current = key;
-    setBulkText(convertItemsToFormat(bulkFormat, items.filter((item) => item.enabled)));
-  }, [items, bulkFormat]);
+    setBulkText(convertItemsToFormat(bulkFormat, items.filter((item) => item.enabled), structured));
+  }, [items, bulkFormat, structured]);
 
   const toggleFormat = (): void => {
     const newFormat: BulkFormat = bulkFormat === 'text' ? 'json' : 'text';
-    const source = bulkFormat === 'json' ? fixJsonString(bulkText) : bulkText;
-    const currentItems = bulkFormat === 'json' ? parseJsonFormat(source) : parseTextFormat(source);
-    setBulkText(currentItems.length > 0 ? convertItemsToFormat(newFormat, currentItems) : source);
+    const currentItems = bulkFormat === 'json' ? parseJsonFormat(bulkText) : parseTextFormat(bulkText);
+    setBulkText(currentItems.length > 0 ? convertItemsToFormat(newFormat, currentItems, structured) : bulkText);
     setBulkFormat(newFormat);
   };
 
@@ -98,15 +73,29 @@ export function BulkEditView({
           <p className="text-[11px] leading-relaxed">
             {bulkFormat === 'text' ? (
               <>
-                Format: <span className="font-mono">key:value</span> (satu per baris)
+                Format: <span className="font-mono">key:value</span> (satu per baris), deskripsi opsional:{' '}
+                <span className="font-mono">key:value:desc:deskripsi</span>
                 <br />
-                Contoh: <span className="font-mono">page:1</span>
+                Contoh:{' '}
+                <span className="font-mono">
+                  {kind === 'params' ? 'page:1:desc:untuk pagination' : 'Accept:application/json:desc:format respons'}
+                </span>
               </>
             ) : (
               <>
-                Format: <span className="font-mono">JSON object</span>
+                Format: <span className="font-mono">JSON object</span>, deskripsi opsional sebagai komentar di
+                akhir baris
                 <br />
-                Contoh: <span className="font-mono">{'{"page":"1","limit":"10"}'}</span>
+                Contoh:{' '}
+                <span className="font-mono">
+                  {kind === 'params' ? '"page": 1, // untuk pagination' : '"Accept": "application/json", // format respons'}
+                </span>
+                {kind === 'headers' && (
+                  <>
+                    <br />
+                    Nilai header selalu teks, jadi ditulis di dalam tanda kutip.
+                  </>
+                )}
               </>
             )}
           </p>

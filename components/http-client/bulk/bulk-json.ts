@@ -115,3 +115,57 @@ export function buildNestedObject(items: Array<{key: string, value: string}>): a
   return result;
 }
 
+
+/** `search[0][column]` -> ["search", "0", "column"], split the same way buildNestedObject does. */
+function segmentsOf(key: string): string[] {
+  return key.includes('[') ? (key.match(/[^\[\]]+/g) ?? []) : [key];
+}
+
+/** The bracket form flattenObject produces: first segment bare, the rest in brackets. */
+export function flatKey(segments: readonly string[]): string {
+  return segments.map((segment, index) => (index === 0 ? segment : `[${segment}]`)).join('');
+}
+
+function emit(value: unknown, path: string, indent: string, notes: ReadonlyMap<string, string>): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  const inner = `${indent}  `;
+  const entries: Array<[string | undefined, unknown, string]> = Array.isArray(value)
+    ? value.map((item, index): [undefined, unknown, string] => [undefined, item, `${path}[${index}]`])
+    : Object.entries(value).map(([key, item]): [string, unknown, string] => [
+        JSON.stringify(key),
+        item,
+        path ? `${path}[${key}]` : key,
+      ]);
+  if (entries.length === 0) return Array.isArray(value) ? '[]' : '{}';
+  const lines = entries.map(([keyText, item, childPath], index) => {
+    const leaf = item === null || typeof item !== 'object';
+    const note = leaf ? notes.get(childPath) : undefined;
+    const comma = index < entries.length - 1 ? ',' : '';
+    return `${inner}${keyText === undefined ? '' : `${keyText}: `}${emit(item, childPath, inner, notes)}${comma}${note ? ` // ${note}` : ''}`;
+  });
+  const [open, close] = Array.isArray(value) ? ['[', ']'] : ['{', '}'];
+  return `${open}\n${lines.join('\n')}\n${indent}${close}`;
+}
+
+/**
+ * The JSON for a list of pairs, laid out like JSON.stringify(..., null, 2), with each description
+ * after its value as a line comment: `"page": 1, // untuk pagination`.
+ *
+ * `structured` (query params) nests bracket keys and turns "1" / "true" into numbers and booleans.
+ * Without it (headers) every key stays as written and every value stays text, so "1.10" is not
+ * turned into 1.1 by opening the editor.
+ */
+export function toCommentedJson(
+  items: ReadonlyArray<{ key: string; value: string; description?: string }>,
+  structured = true,
+): string {
+  const notes = new Map<string, string>();
+  for (const item of items) {
+    const note = item.description?.replace(/\s*\r?\n\s*/g, ' ').trim();
+    if (note) notes.set(structured ? flatKey(segmentsOf(item.key)) : item.key, note);
+  }
+  const tree = structured
+    ? buildNestedObject([...items])
+    : Object.fromEntries(items.map((item) => [item.key, item.value]));
+  return emit(tree, '', '', notes);
+}

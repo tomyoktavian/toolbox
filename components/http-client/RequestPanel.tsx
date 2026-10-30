@@ -18,8 +18,7 @@ import { SelectField } from './SelectField';
 import { AuthEditor } from './AuthEditor';
 import { BodyEditor } from './BodyEditor';
 import { ExampleEditor } from './ExampleEditor';
-import { KeyValueEditor } from './KeyValueEditor';
-import { ParamsEditor } from './bulk/ParamsEditor';
+import { HeadersEditor, ParamsEditor } from './bulk/PairsEditor';
 import { SnippetDialog } from './SnippetDialog';
 import { ResponseView } from './ResponseView';
 import { ScriptEditor } from './ScriptEditor';
@@ -623,11 +622,7 @@ export function RequestPanel() {
             />
           )}
           {tab === 'headers' && (
-            <KeyValueEditor
-              rows={draft.headers}
-              onChange={(headers) => update({ headers })}
-              keyPlaceholder="Header"
-            />
+            <HeadersEditor rows={draft.headers} onChange={(headers) => update({ headers })} />
           )}
           {tab === 'body' && !isWs && (
             <BodyEditor body={draft.body} onChange={(body) => update({ body })} />
