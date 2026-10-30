@@ -108,6 +108,7 @@ export const TOOLS: Tool[] = [
     description: "Bandingkan dua teks atau dua JSON dan lihat perbedaannya.",
     category: "data",
     icon: GitCompare,
+    href: "/diff",
   },
   {
     id: "jwt-decoder",
