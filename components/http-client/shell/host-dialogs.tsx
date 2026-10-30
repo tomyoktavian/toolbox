@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Search } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -21,6 +22,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { HighlightText } from "../HighlightText";
 import type { HostUi, HttpClientHost, PickItem } from "@/lib/http-client/ui/host";
 
 type Pending =
@@ -53,13 +55,17 @@ function readFile(accept: string): Promise<string | undefined> {
 export function HostDialogs({ host }: { host: HttpClientHost }) {
   const [pending, setPending] = useState<Pending | undefined>();
   const [value, setValue] = useState("");
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     const ui: HostUi = {
       confirm: (message, action = "Hapus") =>
         new Promise((resolve) => setPending({ kind: "confirm", message, action, resolve })),
       pick: (placeholder, items) =>
-        new Promise((resolve) => setPending({ kind: "pick", placeholder, items, resolve })),
+        new Promise((resolve) => {
+          setQuery("");
+          setPending({ kind: "pick", placeholder, items, resolve });
+        }),
       input: (options) =>
         new Promise((resolve) => {
           setValue("");
@@ -78,6 +84,12 @@ export function HostDialogs({ host }: { host: HttpClientHost }) {
     else pending.resolve(typeof result === "string" ? result : undefined);
     setPending(undefined);
   };
+
+  const needle = query.trim().toLowerCase();
+  const pickItems =
+    pending?.kind === "pick"
+      ? pending.items.filter((item) => item.label.toLowerCase().includes(needle))
+      : [];
 
   return (
     <>
@@ -100,18 +112,44 @@ export function HostDialogs({ host }: { host: HttpClientHost }) {
           <DialogHeader>
             <DialogTitle>{pending?.kind === "pick" ? pending.placeholder : ""}</DialogTitle>
           </DialogHeader>
-          <div className="flex max-h-72 flex-col gap-1 overflow-y-auto">
-            {pending?.kind === "pick" &&
-              pending.items.map((item) => (
-                <Button
-                  key={item.id}
-                  variant="ghost"
-                  className="justify-start"
-                  onClick={() => close(item.id)}
-                >
-                  {item.label}
-                </Button>
-              ))}
+          <div className="relative">
+            <Search
+              aria-hidden
+              className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              autoFocus
+              aria-label="Cari collection"
+              placeholder="Cari collection…"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                // Enter takes the first match, so a typed name is one keystroke from done.
+                const first = pickItems[0];
+                if (event.key === "Enter" && first) {
+                  event.preventDefault();
+                  close(first.id);
+                }
+              }}
+              className="pl-8"
+            />
+          </div>
+          <div className="flex max-h-72 min-h-0 flex-col gap-1 overflow-y-auto">
+            {pickItems.map((item) => (
+              <Button
+                key={item.id}
+                variant="ghost"
+                className="justify-start"
+                onClick={() => close(item.id)}
+              >
+                <HighlightText text={item.label} highlight={query} />
+              </Button>
+            ))}
+            {pending?.kind === "pick" && pickItems.length === 0 && (
+              <p className="px-2 py-4 text-center text-xs text-muted-foreground">
+                Tidak ada collection yang cocok.
+              </p>
+            )}
           </div>
         </DialogContent>
       </Dialog>
