@@ -160,8 +160,19 @@ export function HttpTab() {
     });
   }, [tree, activeId, activeCollectionId]);
 
+  // Bring the open request into view once, when it becomes the active one. Doing it on every expand,
+  // collapse or tree refresh pulled the list away from the row the user was working on.
+  const scrolledTo = useRef<string | undefined>(undefined);
   useEffect(() => {
-    activeRow.current?.scrollIntoView({ block: 'nearest' });
+    if (!activeId) {
+      scrolledTo.current = undefined;
+      return;
+    }
+    const row = activeRow.current;
+    // The row may not be on screen yet (its folder is still opening); the next run catches it.
+    if (!row || scrolledTo.current === activeId) return;
+    scrolledTo.current = activeId;
+    row.scrollIntoView({ block: 'nearest' });
   }, [activeId, expanded, openCollections, tree]);
 
   useEffect(() => {

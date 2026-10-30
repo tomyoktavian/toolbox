@@ -7,7 +7,7 @@ import {
   useSyncExternalStore,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { CopyPlus, Layers, Folder, Globe, ListX, PanelTopClose, SlidersHorizontal, X } from "lucide-react";
+import { CopyPlus, Layers, Folder, Globe, ListX, PanelTopClose, Plus, SlidersHorizontal, X } from "lucide-react";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -86,6 +86,14 @@ export function Workbench() {
     () => Math.max(SIDEBAR_MIN_WIDTH, Number(readStored(SIDEBAR_WIDTH_KEY)) || SIDEBAR_DEFAULT_WIDTH),
   );
   const groupRef = useRef<HTMLDivElement>(null);
+  const tabStripRef = useRef<HTMLDivElement>(null);
+
+  // Keep the active tab visible, e.g. a request just added at the far end of a long strip.
+  useEffect(() => {
+    tabStripRef.current
+      ?.querySelector('[role="tab"][aria-selected="true"]')
+      ?.scrollIntoView({ inline: "nearest", block: "nearest" });
+  }, [activeKey, panels.length]);
 
   // Saved in pixels, so the sidebar keeps its width when the window is a different size next time.
   const onLayoutChanged = (layout: Record<string, number>, meta: { isUserInteraction: boolean }): void => {
@@ -149,7 +157,8 @@ export function Workbench() {
         <ResizablePanel id="http-editors" minSize="40%">
           <div className="flex h-full min-h-0 flex-col">
             {panels.length > 0 && (
-              <div className="scrollbar-hide flex shrink-0 overflow-x-auto border-b bg-muted/40">
+              // scroll-pr keeps a tab brought into view clear of the pinned "+" button.
+              <div ref={tabStripRef} className="scrollbar-hide flex shrink-0 scroll-pr-9 overflow-x-auto border-b bg-muted/40">
                 {panels.map((panel) => {
                   const unsaved = Boolean(panel.draft || panel.dirty);
                   return (
@@ -224,6 +233,17 @@ export function Workbench() {
                     </ContextMenu>
                   );
                 })}
+                {/* Right after the last tab while there is room; pinned to the right edge once the tabs overflow.
+                    Opaque (a mix of the strip's colours) so tabs scrolling under it do not show through. */}
+                <button
+                  type="button"
+                  aria-label="Request baru"
+                  title="Request baru"
+                  onClick={() => void host.handle({ type: "http-request-new", protocol: "rest" })}
+                  className="sticky right-0 flex w-9 shrink-0 items-center justify-center border-l bg-[color-mix(in_oklab,var(--muted)_40%,var(--background))] text-muted-foreground hover:bg-accent hover:text-foreground"
+                >
+                  <Plus size={14} />
+                </button>
               </div>
             )}
             <div className="relative min-h-0 flex-1">
