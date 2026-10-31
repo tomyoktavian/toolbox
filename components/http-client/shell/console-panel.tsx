@@ -52,22 +52,24 @@ export function ConsoleBar({
   host: HttpClientHost;
   open: boolean;
   onToggle: () => void;
-  sidebar: { open: boolean; onToggle: () => void; shortcut: string };
+  sidebar?: { open: boolean; onToggle: () => void; shortcut: string };
 }) {
   const entries = useConsoleEntries(host);
   const failed = entries.filter(isFailedEntry).length;
   return (
     <footer className="flex h-6 shrink-0 items-center justify-between gap-1 border-t bg-muted/40 px-2 text-[11px]">
       <div className="flex items-center gap-1">
-        <button
-          onClick={sidebar.onToggle}
-          aria-pressed={sidebar.open}
-          aria-label={sidebar.open ? "Sembunyikan sidebar" : "Tampilkan sidebar"}
-          data-tip={`${sidebar.open ? "Sembunyikan" : "Tampilkan"} sidebar (${sidebar.shortcut})`}
-          className="flex items-center rounded px-1.5 py-0.5 hover:bg-accent"
-        >
-          {sidebar.open ? <PanelLeftClose size={13} /> : <PanelLeftOpen size={13} />}
-        </button>
+        {sidebar && (
+          <button
+            onClick={sidebar.onToggle}
+            aria-pressed={sidebar.open}
+            aria-label={sidebar.open ? "Sembunyikan sidebar" : "Tampilkan sidebar"}
+            data-tip={`${sidebar.open ? "Sembunyikan" : "Tampilkan"} sidebar (${sidebar.shortcut})`}
+            className="flex items-center rounded px-1.5 py-0.5 hover:bg-accent"
+          >
+            {sidebar.open ? <PanelLeftClose size={13} /> : <PanelLeftOpen size={13} />}
+          </button>
+        )}
         <LocalProxyButton />
       </div>
       <button
@@ -182,11 +184,11 @@ function EntryRow({ entry }: { entry: ConsoleEntry }) {
 
   return (
     <div className={cn("rounded-md border", isFailedEntry(entry) && "border-destructive/40")}>
-      <div className="flex items-center gap-2 px-2 py-1.5 hover:bg-muted/50">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-2 py-1.5 hover:bg-muted/50">
         <button
           onClick={() => setOpen(!open)}
           aria-expanded={open}
-          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+          className="flex min-w-[140px] flex-1 items-center gap-2 text-left"
         >
           {open ? <ChevronDown size={14} className="shrink-0" /> : <ChevronRight size={14} className="shrink-0" />}
           <span className={cn("w-12 shrink-0 text-[10px] font-bold", methodStyle(entry.method))}>
@@ -194,7 +196,7 @@ function EntryRow({ entry }: { entry: ConsoleEntry }) {
           </span>
           <span className="min-w-0 flex-1 truncate font-mono">{entry.url}</span>
         </button>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-2">
           {entry.tests.length > 0 && (
             <span className={cn("tabular-nums", passed === entry.tests.length ? "text-emerald-500" : "text-red-500")}>
               {passed}/{entry.tests.length} test

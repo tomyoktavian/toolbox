@@ -56,8 +56,8 @@ export function ScriptEditor({
   const append = (code: string): void => onChange(value ? `${value.replace(/\s*$/, '')}\n${code}\n` : `${code}\n`);
 
   return (
-    <div className="flex h-full min-h-0 gap-3">
-      <div className="min-w-0 flex-1">
+    <div className="flex h-full min-h-0 flex-col gap-3 md:flex-row">
+      <div className="min-h-0 min-w-0 flex-1">
         <CodeEditor
           value={value}
           onChange={onChange}
@@ -71,17 +71,19 @@ export function ScriptEditor({
           }
         />
       </div>
-      <div className="w-52 shrink-0 overflow-y-auto text-[11px]">
-        <div className="mb-1 font-medium uppercase opacity-60">Snippets</div>
-        {snippets.map((snippet) => (
-          <button
-            key={snippet.label}
-            onClick={() => append(snippet.code)}
-            className="mb-0.5 block w-full rounded px-1.5 py-1 text-left opacity-80 hover:bg-[var(--vscode-list-hoverBackground)] hover:opacity-100"
-          >
-            {snippet.label}
-          </button>
-        ))}
+      <div className="shrink-0 overflow-x-auto text-[11px] md:w-52 md:overflow-y-auto">
+        <div className="mb-1 hidden font-medium uppercase opacity-60 md:block">Snippets</div>
+        <div className="flex gap-1 md:block">
+          {snippets.map((snippet) => (
+            <button
+              key={snippet.label}
+              onClick={() => append(snippet.code)}
+              className="shrink-0 whitespace-nowrap rounded px-1.5 py-1 text-left opacity-80 hover:bg-[var(--vscode-list-hoverBackground)] hover:opacity-100 md:mb-0.5 md:block md:w-full md:whitespace-normal"
+            >
+              {snippet.label}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );

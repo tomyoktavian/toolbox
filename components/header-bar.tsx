@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, Search } from "lucide-react";
+import { LayoutGrid, Menu, Search } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { CommandPalette } from "@/components/command-palette";
+import { sidebarDrawer } from "@/components/http-client/drawer-store";
 import { TOOLS } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +24,11 @@ export function HeaderBar({
 }) {
   const pathname = usePathname();
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const drawerOpen = useSyncExternalStore(
+    sidebarDrawer.subscribe,
+    sidebarDrawer.getSnapshot,
+    sidebarDrawer.getServerSnapshot,
+  );
 
   const currentTool = TOOLS.find((tool) => tool.href === pathname);
   const CurrentIcon = currentTool?.icon;
@@ -36,6 +42,17 @@ export function HeaderBar({
         )}
       >
         <div className="flex items-center gap-5">
+          {pathname === "/http-client" && (
+            <button
+              type="button"
+              aria-label={drawerOpen ? "Tutup menu sidebar" : "Buka menu sidebar"}
+              aria-pressed={drawerOpen}
+              onClick={() => sidebarDrawer.toggle()}
+              className="flex size-[34px] items-center justify-center rounded-lg border bg-card text-foreground transition-colors hover:bg-muted md:hidden"
+            >
+              <Menu className="size-4" aria-hidden="true" />
+            </button>
+          )}
           {brand ? (
             <>
               <Link

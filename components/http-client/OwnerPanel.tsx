@@ -184,7 +184,7 @@ export function OwnerPanel() {
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-3 border-y border-[var(--vscode-panel-border)] px-3">
+        <div className="scrollbar-hide flex shrink-0 items-center gap-3 overflow-x-auto border-y border-[var(--vscode-panel-border)] px-3">
           {tabs.map((name) => (
             <button
               key={name}

@@ -18,6 +18,9 @@ import {
 } from "@/components/ui/context-menu";
 import { usePanelRef } from "react-resizable-panels";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { sidebarDrawer } from "../drawer-store";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { BridgeProvider } from "@/lib/http-client/ui/bridge";
 import { HttpClientHost, type HostPanel } from "@/lib/http-client/ui/host";
@@ -93,6 +96,12 @@ export function Workbench() {
   // Hidden by collapsing the panel, not by unmounting it, so its filter, open folders and scroll survive.
   const [startOpen] = useState(() => readStored(SIDEBAR_OPEN_KEY) !== "0");
   const [sidebarOpen, setSidebarOpen] = useState(startOpen);
+  const isMobile = useIsMobile();
+  const drawerOpen = useSyncExternalStore(
+    sidebarDrawer.subscribe,
+    sidebarDrawer.getSnapshot,
+    sidebarDrawer.getServerSnapshot,
+  );
   const lastSidebarWidth = useRef(sidebarWidth);
   const tabStripRef = useRef<HTMLDivElement>(null);
 
@@ -118,6 +127,10 @@ export function Workbench() {
   };
 
   const toggleSidebar = useCallback((): void => {
+    if (isMobile) {
+      sidebarDrawer.toggle();
+      return;
+    }
     const panel = sidebarRef.current;
     if (!panel) return;
     // State is set here as well as from onResize: the library's callback is there for the divider being
@@ -131,7 +144,7 @@ export function Workbench() {
       panel.collapse();
       setSidebarOpen(false);
     }
-  }, [sidebarRef]);
+  }, [isMobile, sidebarRef]);
 
   useEffect(() => {
     try {
@@ -180,174 +193,194 @@ export function Workbench() {
     handle.addEventListener("pointercancel", up);
   };
 
+  const editorArea = (
+    <div className="flex h-full min-h-0 flex-col">
+      {panels.length > 0 && (
+        // scroll-pr keeps a tab brought into view clear of the pinned "+" button.
+        <div ref={tabStripRef} className="scrollbar-hide flex shrink-0 scroll-pr-9 overflow-x-auto border-b bg-muted/40">
+          {panels.map((panel) => {
+            const unsaved = Boolean(panel.draft || panel.dirty);
+            return (
+              <ContextMenu key={panel.key}>
+              <ContextMenuTrigger
+                render={
+                  <div
+                    role="tab"
+                    aria-selected={panel.key === activeKey}
+                    title={panel.draft ? `${panel.title} — draft, belum disimpan` : panel.title}
+                    onClick={() => host.activate(panel.key)}
+                    onAuxClick={(event) => {
+                      if (event.button === 1) void host.close(panel.key);
+                    }}
+                    className={cn(
+                      "group flex max-w-56 shrink-0 items-center gap-1.5 border-r py-1.5 pl-3 pr-1.5 text-xs",
+                      panel.draft && "italic",
+                      panel.key === activeKey
+                        ? "-mb-px border-b border-b-background bg-background text-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  />
+                }
+              >
+                <TabLabel panel={panel} />
+                {/* Like VS Code: an unsaved tab shows a dot that turns into the close button on hover. */}
+                <button
+                  aria-label={`Tutup ${panel.title}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void host.close(panel.key);
+                  }}
+                  className={cn(
+                    "relative ml-1 flex size-5 items-center justify-center rounded hover:bg-accent",
+                    unsaved || panel.key === activeKey ? "opacity-70" : "opacity-0 group-hover:opacity-70",
+                  )}
+                >
+                  {unsaved && (
+                    <span className="size-2 rounded-full bg-foreground group-hover:hidden" aria-hidden />
+                  )}
+                  <X size={12} className={cn(unsaved && "hidden group-hover:block")} />
+                </button>
+              </ContextMenuTrigger>
+              <ContextMenuContent className="min-w-48 text-xs">
+                <ContextMenuItem className="text-xs" onClick={() => void host.close(panel.key)}>
+                  <X /> Tutup tab
+                </ContextMenuItem>
+                <ContextMenuItem
+                  className="text-xs"
+                  disabled={panels.length < 2}
+                  onClick={() =>
+                    void host.closeMany(panels.filter((item) => item.key !== panel.key).map((item) => item.key))
+                  }
+                >
+                  <PanelTopClose /> Tutup tab lain
+                </ContextMenuItem>
+                <ContextMenuItem
+                  className="text-xs"
+                  onClick={() => void host.closeMany(panels.map((item) => item.key))}
+                >
+                  <ListX /> Tutup semua tab
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+                <ContextMenuItem
+                  className="text-xs"
+                  disabled={panel.kind !== "request"}
+                  onClick={() => void host.duplicate(panel.key)}
+                >
+                  <CopyPlus /> Duplikat tab
+                </ContextMenuItem>
+              </ContextMenuContent>
+              </ContextMenu>
+            );
+          })}
+          {/* Right after the last tab while there is room; pinned to the right edge once the tabs overflow.
+              Opaque (a mix of the strip's colours) so tabs scrolling under it do not show through. */}
+          <button
+            type="button"
+            aria-label="Request baru"
+            title="Request baru"
+            onClick={() => void host.handle({ type: "http-request-new", protocol: "rest" })}
+            className="sticky right-0 flex w-9 shrink-0 items-center justify-center border-l bg-[color-mix(in_oklab,var(--muted)_40%,var(--background))] text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            <Plus size={14} />
+          </button>
+        </div>
+      )}
+      <div className="relative min-h-0 flex-1">
+        {panels.length === 0 && (
+          <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-xs text-muted-foreground">
+            <Globe size={28} className="opacity-40" />
+            <p>Buka request dari sidebar, atau buat yang baru.</p>
+            <button
+              onClick={() => void host.handle({ type: "http-request-new", protocol: "rest" })}
+              className="rounded-full border px-3 py-1 text-foreground hover:bg-accent"
+            >
+              HTTP request baru
+            </button>
+          </div>
+        )}
+        {panels.map((panel) => (
+          // Inactive panels stay mounted, like retained webviews, so drafts and responses survive.
+          <div key={panel.key} className={cn("absolute inset-0", panel.key !== activeKey && "hidden")}>
+            <BridgeProvider channel={panel.channel}>
+              <PanelView panel={panel} />
+            </BridgeProvider>
+          </div>
+        ))}
+      </div>
+      {/* A sibling after the editors, so opening the console never remounts them (drafts live there). */}
+      {consoleOpen && (
+        <>
+          <div
+            onPointerDown={onConsoleResizeStart}
+            onDoubleClick={() => setConsoleHeight(CONSOLE_DEFAULT_HEIGHT)}
+            data-tip="Geser untuk mengubah tinggi · klik dua kali untuk reset"
+            className="group relative h-1.5 shrink-0 cursor-row-resize touch-none select-none"
+          >
+            <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-border transition-colors group-hover:bg-ring group-active:bg-ring" />
+          </div>
+          <div style={{ height: consoleHeight, maxHeight: "70%" }} className="shrink-0">
+            <ConsolePanel host={host} onClose={() => setConsoleOpen(false)} />
+          </div>
+        </>
+      )}
+    </div>
+  );
+
   return (
     <div className="http-client-root flex h-full w-full flex-col overflow-hidden bg-background text-foreground">
-      <div className="min-h-0 flex-1">
-      <ResizablePanelGroup
-        orientation="horizontal"
-        className="h-full w-full"
-        elementRef={groupRef}
-        onLayoutChanged={onLayoutChanged}
-      >
-        <ResizablePanel
-          id="http-sidebar"
-          panelRef={sidebarRef}
-          defaultSize={startOpen ? sidebarWidth : 0}
-          minSize={SIDEBAR_MIN_WIDTH}
-          maxSize="50%"
-          collapsible
-          collapsedSize={0}
-          // The open state follows the real size, so dragging the divider closed counts too.
-          onResize={(size) => setSidebarOpen(size.inPixels > 0)}
-          // A hidden sidebar must not be reachable with Tab either.
-          inert={!sidebarOpen}
-          className={cn("border-r", !sidebarOpen && "overflow-hidden border-r-0")}
-        >
-          <BridgeProvider channel={host.sidebar}>
-            <HttpTab />
-          </BridgeProvider>
-        </ResizablePanel>
-        <ResizableHandle />
-        <ResizablePanel id="http-editors" minSize="40%">
-          <div className="flex h-full min-h-0 flex-col">
-            {panels.length > 0 && (
-              // scroll-pr keeps a tab brought into view clear of the pinned "+" button.
-              <div ref={tabStripRef} className="scrollbar-hide flex shrink-0 scroll-pr-9 overflow-x-auto border-b bg-muted/40">
-                {panels.map((panel) => {
-                  const unsaved = Boolean(panel.draft || panel.dirty);
-                  return (
-                    <ContextMenu key={panel.key}>
-                    <ContextMenuTrigger
-                      render={
-                        <div
-                          role="tab"
-                          aria-selected={panel.key === activeKey}
-                          title={panel.draft ? `${panel.title} — draft, belum disimpan` : panel.title}
-                          onClick={() => host.activate(panel.key)}
-                          onAuxClick={(event) => {
-                            if (event.button === 1) void host.close(panel.key);
-                          }}
-                          className={cn(
-                            "group flex max-w-56 shrink-0 items-center gap-1.5 border-r py-1.5 pl-3 pr-1.5 text-xs",
-                            panel.draft && "italic",
-                            panel.key === activeKey
-                              ? "-mb-px border-b border-b-background bg-background text-foreground"
-                              : "text-muted-foreground hover:text-foreground",
-                          )}
-                        />
-                      }
-                    >
-                      <TabLabel panel={panel} />
-                      {/* Like VS Code: an unsaved tab shows a dot that turns into the close button on hover. */}
-                      <button
-                        aria-label={`Tutup ${panel.title}`}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void host.close(panel.key);
-                        }}
-                        className={cn(
-                          "relative ml-1 flex size-5 items-center justify-center rounded hover:bg-accent",
-                          unsaved || panel.key === activeKey ? "opacity-70" : "opacity-0 group-hover:opacity-70",
-                        )}
-                      >
-                        {unsaved && (
-                          <span className="size-2 rounded-full bg-foreground group-hover:hidden" aria-hidden />
-                        )}
-                        <X size={12} className={cn(unsaved && "hidden group-hover:block")} />
-                      </button>
-                    </ContextMenuTrigger>
-                    <ContextMenuContent className="min-w-48 text-xs">
-                      <ContextMenuItem className="text-xs" onClick={() => void host.close(panel.key)}>
-                        <X /> Tutup tab
-                      </ContextMenuItem>
-                      <ContextMenuItem
-                        className="text-xs"
-                        disabled={panels.length < 2}
-                        onClick={() =>
-                          void host.closeMany(panels.filter((item) => item.key !== panel.key).map((item) => item.key))
-                        }
-                      >
-                        <PanelTopClose /> Tutup tab lain
-                      </ContextMenuItem>
-                      <ContextMenuItem
-                        className="text-xs"
-                        onClick={() => void host.closeMany(panels.map((item) => item.key))}
-                      >
-                        <ListX /> Tutup semua tab
-                      </ContextMenuItem>
-                      <ContextMenuSeparator />
-                      <ContextMenuItem
-                        className="text-xs"
-                        disabled={panel.kind !== "request"}
-                        onClick={() => void host.duplicate(panel.key)}
-                      >
-                        <CopyPlus /> Duplikat tab
-                      </ContextMenuItem>
-                    </ContextMenuContent>
-                    </ContextMenu>
-                  );
-                })}
-                {/* Right after the last tab while there is room; pinned to the right edge once the tabs overflow.
-                    Opaque (a mix of the strip's colours) so tabs scrolling under it do not show through. */}
-                <button
-                  type="button"
-                  aria-label="Request baru"
-                  title="Request baru"
-                  onClick={() => void host.handle({ type: "http-request-new", protocol: "rest" })}
-                  className="sticky right-0 flex w-9 shrink-0 items-center justify-center border-l bg-[color-mix(in_oklab,var(--muted)_40%,var(--background))] text-muted-foreground hover:bg-accent hover:text-foreground"
-                >
-                  <Plus size={14} />
-                </button>
-              </div>
-            )}
-            <div className="relative min-h-0 flex-1">
-              {panels.length === 0 && (
-                <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-xs text-muted-foreground">
-                  <Globe size={28} className="opacity-40" />
-                  <p>Buka request dari sidebar, atau buat yang baru.</p>
-                  <button
-                    onClick={() => void host.handle({ type: "http-request-new", protocol: "rest" })}
-                    className="rounded-full border px-3 py-1 text-foreground hover:bg-accent"
-                  >
-                    HTTP request baru
-                  </button>
-                </div>
-              )}
-              {panels.map((panel) => (
-                // Inactive panels stay mounted, like retained webviews, so drafts and responses survive.
-                <div key={panel.key} className={cn("absolute inset-0", panel.key !== activeKey && "hidden")}>
-                  <BridgeProvider channel={panel.channel}>
-                    <PanelView panel={panel} />
-                  </BridgeProvider>
-                </div>
-              ))}
-            </div>
-            {/* A sibling after the editors, so opening the console never remounts them (drafts live there). */}
-            {consoleOpen && (
-              <>
-                <div
-                  onPointerDown={onConsoleResizeStart}
-                  onDoubleClick={() => setConsoleHeight(CONSOLE_DEFAULT_HEIGHT)}
-                  data-tip="Geser untuk mengubah tinggi · klik dua kali untuk reset"
-                  className="group relative h-1.5 shrink-0 cursor-row-resize touch-none select-none"
-                >
-                  <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-border transition-colors group-hover:bg-ring group-active:bg-ring" />
-                </div>
-                <div style={{ height: consoleHeight, maxHeight: "70%" }} className="shrink-0">
-                  <ConsolePanel host={host} onClose={() => setConsoleOpen(false)} />
-                </div>
-              </>
-            )}
-          </div>
-        </ResizablePanel>
-      </ResizablePanelGroup>
-      </div>
+      {isMobile ? (
+        <div className="min-h-0 flex-1">{editorArea}</div>
+      ) : (
+        <div className="min-h-0 flex-1">
+          <ResizablePanelGroup
+            orientation="horizontal"
+            className="h-full w-full"
+            elementRef={groupRef}
+            onLayoutChanged={onLayoutChanged}
+          >
+            <ResizablePanel
+              id="http-sidebar"
+              panelRef={sidebarRef}
+              defaultSize={startOpen ? sidebarWidth : 0}
+              minSize={SIDEBAR_MIN_WIDTH}
+              maxSize="50%"
+              collapsible
+              collapsedSize={0}
+              // The open state follows the real size, so dragging the divider closed counts too.
+              onResize={(size) => setSidebarOpen(size.inPixels > 0)}
+              // A hidden sidebar must not be reachable with Tab either.
+              inert={!sidebarOpen}
+              className={cn("border-r", !sidebarOpen && "overflow-hidden border-r-0")}
+            >
+              <BridgeProvider channel={host.sidebar}>
+                <HttpTab />
+              </BridgeProvider>
+            </ResizablePanel>
+            <ResizableHandle />
+            <ResizablePanel id="http-editors" minSize="40%">{editorArea}</ResizablePanel>
+          </ResizablePanelGroup>
+        </div>
+      )}
       <ConsoleBar
         host={host}
         open={consoleOpen}
         onToggle={() => setConsoleOpen(!consoleOpen)}
-        sidebar={{ open: sidebarOpen, onToggle: toggleSidebar, shortcut: sidebarShortcut }}
+        sidebar={
+          isMobile ? undefined : { open: sidebarOpen, onToggle: toggleSidebar, shortcut: sidebarShortcut }
+        }
       />
+      {isMobile && (
+        <Sheet open={drawerOpen} onOpenChange={(open) => sidebarDrawer.set(open)}>
+          <SheetContent keepMounted showCloseButton={false} side="left" className="w-[85vw]! max-w-xs gap-0 p-0">
+            <SheetTitle className="sr-only">Sidebar</SheetTitle>
+            <div className="min-h-0 flex-1">
+              <BridgeProvider channel={host.sidebar}>
+                <HttpTab />
+              </BridgeProvider>
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
       <TooltipLayer />
       <HostDialogs host={host} />
     </div>

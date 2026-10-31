@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Braces,
   Check,
@@ -107,7 +107,12 @@ export function ResponseView({
   const [modeOpen, setModeOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [compact, setCompact] = useState(false);
+  const [hasResponseRoot, setHasResponseRoot] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const attachRoot = useCallback((element: HTMLDivElement | null) => {
+    rootRef.current = element;
+    setHasResponseRoot(Boolean(element));
+  }, []);
   const [codegen, setCodegen] = useState(false);
   const bodyRef = useRef<ResponseBodyHandle>(null);
 
@@ -217,7 +222,7 @@ export function ResponseView({
     });
     observer.observe(element);
     return () => observer.disconnect();
-  }, []);
+  }, [hasResponseRoot]);
 
   const tests = reports.flatMap((report) => report.tests);
   const logs = reports.flatMap((report) =>
@@ -341,7 +346,7 @@ export function ResponseView({
   ];
 
   return (
-    <div ref={rootRef} className="flex h-full min-h-0 flex-col">
+    <div ref={attachRoot} className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 flex-wrap items-center gap-3 px-3 py-1.5 text-xs">
         {response && (
           <>

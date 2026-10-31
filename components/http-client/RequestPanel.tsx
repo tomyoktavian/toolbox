@@ -13,6 +13,7 @@ import type {
   WsSessionState,
 } from '@/lib/http-client/core';
 import { Button } from '@/components/http-client/shared/motion/button/base';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { useBridge } from '@/lib/http-client/ui/bridge';
 import { SelectField } from './SelectField';
 import { AuthEditor } from './AuthEditor';
@@ -85,6 +86,7 @@ export function RequestPanel() {
   // pointer on its own; the others are told once, when it is let go.
   const layout = useSyncExternalStore(paneLayout.subscribe, paneLayout.getSnapshot, paneLayout.getServerSnapshot);
   const [dragRatio, setDragRatio] = useState<number | undefined>();
+  const isMobile = useIsMobile();
   const split = layout.split;
   const splitRatio = dragRatio ?? layout.splitRatio;
   const [tab, setTab] = useState<Tab>('params');
@@ -425,7 +427,7 @@ export function RequestPanel() {
   return (
     <VarScopeProvider value={scope}>
     <div className="flex h-full flex-col text-xs">
-      <div className="flex shrink-0 items-center gap-2 px-3 py-1.5">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 gap-y-1 px-3 py-1.5">
         {collection && (
           <button
             className="truncate opacity-50 hover:opacity-100 hover:underline"
@@ -480,13 +482,15 @@ export function RequestPanel() {
             // Creates it and opens the Environments page on it; this tab's own choice is left alone.
             action={{ label: 'Add new environment', onSelect: () => post({ type: 'http-env-new' }) }}
           />
-          <button
-            data-tip={split === 'vertical' ? 'Tata letak kiri-kanan' : 'Tata letak atas-bawah'}
-            onClick={() => paneLayout.set({ split: split === 'vertical' ? 'horizontal' : 'vertical' })}
-            className="rounded p-1 opacity-70 hover:opacity-100"
-          >
-            {split === 'vertical' ? <Columns2 size={14} /> : <Rows2 size={14} />}
-          </button>
+          {!isMobile && (
+            <button
+              data-tip={split === 'vertical' ? 'Tata letak kiri-kanan' : 'Tata letak atas-bawah'}
+              onClick={() => paneLayout.set({ split: split === 'vertical' ? 'horizontal' : 'vertical' })}
+              className="rounded p-1 opacity-70 hover:opacity-100"
+            >
+              {split === 'vertical' ? <Columns2 size={14} /> : <Rows2 size={14} />}
+            </button>
+          )}
           <button
             data-tip="Lihat variabel aktif"
             onClick={() => setShowVars(!showVars)}
@@ -525,7 +529,7 @@ export function RequestPanel() {
         />
       )}
 
-      <div className="flex shrink-0 items-center gap-2 border-y border-[var(--vscode-panel-border)] px-3 py-2">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 gap-y-1.5 border-y border-[var(--vscode-panel-border)] px-3 py-2">
         {isWs ? (
           <span className={`font-bold ${methodStyle('WS')}`}>WS</span>
         ) : (
@@ -556,7 +560,7 @@ export function RequestPanel() {
             isWs ? 'wss://{{baseUrl}}/realtime' : 'https://{{baseUrl}}/path — atau tempel perintah cURL'
           }
           mono
-          className={`flex-1 ${CELL}`}
+          className={`min-w-[180px] flex-1 ${CELL}`}
         />
         {!isWs && running ? (
           <Button
@@ -587,7 +591,7 @@ export function RequestPanel() {
       )}
 
       <SplitPane
-        direction={split}
+        direction={isMobile ? 'vertical' : split}
         ratio={splitRatio}
         onRatioChange={setDragRatio}
         onRatioCommit={(ratio) => {

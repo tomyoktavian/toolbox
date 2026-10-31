@@ -47,6 +47,7 @@ import {
 import { PathSelector } from "./path-selector";
 import { ManipulationHelp } from "./manipulation-help";
 import { useManipulationStore } from "@/lib/store";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 import {
   type MappingRule,
@@ -211,7 +212,7 @@ function MappingRuleItem({ mapping, onUpdate, onRemove, onMove, isFirst, isLast,
     <Card className="overflow-hidden border border-border shadow-sm hover:border-primary/40 transition-all group">
       <div className="p-4 space-y-4 bg-background">
         <div className="flex items-center justify-between gap-4">
-           <div className="flex-1 grid grid-cols-2 gap-4">
+           <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Target Output Key</Label>
               <Input
@@ -511,6 +512,7 @@ export function ManipulationPlayground() {
     resetConfig,
   } = useManipulationStore();
 
+  const isMobile = useIsMobile();
   const [isHydrated, setIsHydrated] = useState(false);
 
   // Handle Hydration
@@ -566,7 +568,7 @@ export function ManipulationPlayground() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-var(--app-header))] bg-background">
-      <ResizablePanelGroup orientation="horizontal" className="flex-1">
+      <ResizablePanelGroup orientation={isMobile ? "vertical" : "horizontal"} className="flex-1">
         {/* Input Panel */}
         <ResizablePanel defaultSize={35} minSize={20}>
           <div className="flex flex-col h-full">
@@ -630,7 +632,7 @@ export function ManipulationPlayground() {
               </div>
               
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Result Type</Label>
                     <Select items={OUTPUT_MODE_ITEMS} value={outputMode} onValueChange={(v) => setOutputMode(v as any)}>

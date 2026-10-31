@@ -117,7 +117,7 @@ export function EnvironmentsView() {
       <div className="flex shrink-0 items-center gap-2 border-b border-[var(--vscode-panel-border)] px-4 py-2.5">
         <Layers size={15} />
         <span className="text-sm font-medium">Environments</span>
-        <span className="opacity-50">
+        <span className="hidden opacity-50 md:inline">
           Berlaku di semua project yang memakai Silak di mesin ini.
         </span>
         <div className="ml-auto flex items-center gap-1.5">
@@ -127,9 +127,9 @@ export function EnvironmentsView() {
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1">
-        <aside className="flex w-60 shrink-0 flex-col border-r border-[var(--vscode-panel-border)]">
-          <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+        <aside className="flex w-full shrink-0 flex-col border-b border-[var(--vscode-panel-border)] md:w-60 md:border-b-0 md:border-r">
+          <div className="flex min-h-0 flex-1 gap-1.5 overflow-x-auto p-1.5 md:block md:overflow-y-auto">
             <SideRow
               icon={<Globe size={13} />}
               label="Globals"
@@ -137,7 +137,7 @@ export function EnvironmentsView() {
               active={selected === GLOBALS}
               onClick={() => setSelected(GLOBALS)}
             />
-            <div className="mt-2 mb-1 px-1.5 font-medium uppercase opacity-50">Environments</div>
+            <div className="mt-2 mb-1 hidden px-1.5 font-medium uppercase opacity-50 md:block">Environments</div>
             {state.environments.length === 0 && (
               <div className="px-1.5 opacity-60">Belum ada environment.</div>
             )}
@@ -263,7 +263,7 @@ export function EnvironmentsView() {
             />
           ) : (
             <div className="min-h-0 flex-1 overflow-auto px-2 py-1">
-              <table className="w-full table-fixed">
+              <table className="w-full min-w-[480px] table-fixed">
                 <thead className="sticky top-0 bg-[var(--vscode-editor-background)] text-left opacity-60">
                   <tr>
                     <th className="w-8" />
@@ -391,7 +391,7 @@ function SideRow({
   return (
     <button
       onClick={onClick}
-      className={`flex w-full items-center gap-2 rounded px-1.5 py-1.5 text-left ${
+      className={`flex w-auto shrink-0 items-center gap-2 whitespace-nowrap rounded px-1.5 py-1.5 text-left md:w-full md:shrink md:whitespace-normal ${
         active
           ? 'bg-[var(--vscode-list-activeSelectionBackground)] text-[var(--vscode-list-activeSelectionForeground)]'
           : 'hover:bg-[var(--vscode-list-hoverBackground)]'
@@ -399,7 +399,7 @@ function SideRow({
     >
       {icon}
       <span className="min-w-0 flex-1 truncate">{label}</span>
-      <span className="shrink-0 opacity-50">{detail}</span>
+      <span className="hidden shrink-0 opacity-50 md:inline">{detail}</span>
     </button>
   );
 }
